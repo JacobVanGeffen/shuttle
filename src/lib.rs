@@ -184,6 +184,7 @@ pub mod asynch;
 pub mod rand;
 pub mod sync;
 pub mod thread;
+pub mod tokio_utils;
 
 pub mod scheduler;
 

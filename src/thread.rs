@@ -44,7 +44,8 @@ where
     spawn_named(f, None, None)
 }
 
-fn spawn_named<F, T>(f: F, name: Option<String>, stack_size: Option<usize>) -> JoinHandle<T>
+/// Spawn a named thread
+pub fn spawn_named<F, T>(f: F, name: Option<String>, stack_size: Option<usize>) -> JoinHandle<T>
 where
     F: FnOnce() -> T,
     F: Send + 'static,

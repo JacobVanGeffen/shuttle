@@ -57,7 +57,7 @@ impl Execution {
 
         EXECUTION_STATE.set(&state, move || {
             // Spawn `f` as the first task
-            ExecutionState::spawn_thread(f, config.stack_size, None);
+            ExecutionState::spawn_thread(f, config.stack_size, Some("First task".to_string()));
 
             // Run the test to completion
             while self.step(config) {}
@@ -405,6 +405,11 @@ impl ExecutionState {
             .map(ScheduledTask::Some)
             .unwrap_or(ScheduledTask::Stopped);
 
+        // TODO remove
+        match self.next_task.id() {
+            None => println!("No next task"),
+            Some(id) => println!("Next task: {:?}", self.get(id).name()),
+        }
         trace!(?runnable, next_task=?self.next_task);
     }
 
