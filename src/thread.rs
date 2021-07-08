@@ -95,6 +95,22 @@ pub struct JoinHandle<T> {
 }
 
 impl<T> JoinHandle<T> {
+    /// Return the result if it's ready or None if it's not
+    pub fn result(&self) -> Option<std::thread::Result<T>> {
+        self.result.lock().unwrap().take()
+    }
+
+    /// Sets the waiter without blocking the task
+    // TODO can I just use join instead?
+    #[allow(unused)]
+    pub fn set_waiter(&self) {
+        ExecutionState::with(|state| {
+            let me = state.current().id();
+            let r = state.get_mut(self.task_id).set_waiter(me);
+            assert!(r, "task shouldn't be finished if no result is present");
+        });
+    }
+
     /// Waits for the associated thread to finish.
     pub fn join(self) -> std::thread::Result<T> {
         ExecutionState::with(|state| {

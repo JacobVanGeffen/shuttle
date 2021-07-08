@@ -410,7 +410,13 @@ impl ExecutionState {
             None => println!("No next task"),
             Some(id) => println!("Next task: {:?}", self.get(id).name()),
         }
-        trace!(?runnable, next_task=?self.next_task);
+        let nonfinished = self
+            .tasks
+            .iter()
+            .filter(|t| !t.finished())
+            .map(|t| t.id)
+            .collect::<SmallVec<[_; DEFAULT_INLINE_TASKS]>>();
+        trace!(?nonfinished, ?runnable, next_task=?self.next_task);
     }
 
     /// Set the next task as the current task, and update our tracing span

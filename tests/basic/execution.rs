@@ -1,5 +1,5 @@
 use shuttle::scheduler::RandomScheduler;
-use shuttle::{check, thread, Config, MaxSteps, Runner};
+use shuttle::{check_dfs, thread, Config, MaxSteps, Runner};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use test_env_log::test;
 // Not actually trying to explore interleavings involving AtomicUsize, just using to smuggle a
@@ -12,14 +12,17 @@ fn basic_scheduler_test() {
     let counter = Arc::new(AtomicUsize::new(0));
     let counter_clone = Arc::clone(&counter);
 
-    check(move || {
-        counter.fetch_add(1, Ordering::SeqCst);
-        let counter_clone = Arc::clone(&counter);
-        thread::spawn(move || {
-            counter_clone.fetch_add(1, Ordering::SeqCst);
-        });
-        counter.fetch_add(1, Ordering::SeqCst);
-    });
+    check_dfs(
+        move || {
+            counter.fetch_add(1, Ordering::SeqCst);
+            let counter_clone = Arc::clone(&counter);
+            thread::spawn(move || {
+                counter_clone.fetch_add(1, Ordering::SeqCst);
+            });
+            counter.fetch_add(1, Ordering::SeqCst);
+        },
+        None,
+    );
 
     assert_eq!(counter_clone.load(Ordering::SeqCst), 3);
 }

@@ -43,6 +43,11 @@ pub struct JoinHandle<T> {
 }
 
 impl<T> JoinHandle<T> {
+    /// Return the result if it's ready or None if it's not
+    pub fn result(&self) -> Option<Result<T, JoinError>> {
+        self.result.lock().unwrap().take()
+    }
+
     /// Abort the task associated with the handle.
     // TODO implement (only tokio provides this)
     pub fn abort(&self) {
@@ -62,7 +67,7 @@ impl<T> Future for JoinHandle<T> {
     type Output = Result<T, JoinError>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(result) = self.result.lock().unwrap().take() {
+        if let Some(result) = self.result() {
             Poll::Ready(result)
         } else {
             ExecutionState::with(|state| {

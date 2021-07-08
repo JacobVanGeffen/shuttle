@@ -1,5 +1,6 @@
 #![deny(warnings)]
 
+#[cfg(test)]
 mod asynch;
 mod basic;
 mod data;
