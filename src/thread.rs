@@ -51,7 +51,11 @@ where
     spawn_named(f, None, None)
 }
 
-fn spawn_named<F, T>(f: F, name: Option<String>, stack_size: Option<usize>) -> JoinHandle<T>
+/// Spawn a new named thread, returning a JoinHandle for it.
+///
+/// The join handle can be used (via the `join` method) to block until the child thread has
+/// finished.
+pub fn spawn_named<F, T>(f: F, name: Option<String>, stack_size: Option<usize>) -> JoinHandle<T>
 where
     F: FnOnce() -> T,
     F: Send + 'static,

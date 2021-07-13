@@ -19,9 +19,18 @@ where
     F: Future<Output = T> + Send + 'static,
     T: Send + 'static,
 {
+    spawn_named(fut, None)
+}
+
+/// Spawn a new named async task that the executor will run to completion.
+pub fn spawn_named<T, F>(fut: F, name: Option<String>) -> JoinHandle<T>
+where
+    F: Future<Output = T> + Send + 'static,
+    T: Send + 'static,
+{
     let result = std::sync::Arc::new(std::sync::Mutex::new(None));
     let stack_size = ExecutionState::with(|s| s.config.stack_size);
-    let task_id = ExecutionState::spawn_future(Wrapper::new(fut, std::sync::Arc::clone(&result)), stack_size, None);
+    let task_id = ExecutionState::spawn_future(Wrapper::new(fut, std::sync::Arc::clone(&result)), stack_size, name);
     // TODO I think we need to yield here to give the spawned task a chance to execute before the spawner continues
     JoinHandle { task_id, result }
 }
