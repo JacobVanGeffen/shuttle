@@ -243,10 +243,9 @@ fn one_way_server() {
                     println!("server got message: {:?}", msg);
                     let msg = socket.read_u16().await.unwrap();
                     println!("server got message: {:?}", msg);
-                    let msg = socket.read_u16().await.unwrap();
-                    println!("server got message: {:?}", msg);
-                    let msg = socket.read_u16().await.unwrap();
-                    println!("server got message: {:?}", msg);
+                    socket.write_u16(0xabcd).await.unwrap();
+                    socket.write_u16(0xef90).await.unwrap();
+                    println!("server wrote 2 messages");
                 },
                 Some("Server".to_string()),
             );
@@ -257,8 +256,10 @@ fn one_way_server() {
                     println!("hit client");
                     let mut stream = TcpStream::connect(addr).await.unwrap();
                     println!("client got stream");
-                    stream.write_u64(0x12345678abcdef90).await.unwrap();
+                    stream.write_u32(0x12345678).await.unwrap();
                     println!("client wrote message");
+                    let msg = stream.read_u32().await.unwrap();
+                    println!("client got message: {:?}", msg);
                 },
                 Some("client".to_string()),
             );
