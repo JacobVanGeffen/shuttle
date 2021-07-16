@@ -214,6 +214,56 @@ fn normal_files() {
 }
 
 #[test]
+fn send_three_bytes() {
+    check_random(
+        move || {
+            let rt = Arc::new(
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_io()
+                    .build()
+                    .unwrap(),
+            );
+            let rt_clone = rt.clone();
+            let _enter = rt_clone.enter();
+
+            // Bind synchronously, and let the OS choose a port to listen on.
+            let listener = shuttle::asynch::block_on(TcpListener::bind("127.0.0.1:8080")).unwrap();
+            let addr = listener.local_addr().unwrap();
+
+            println!("Got the listeners");
+
+            // The server will wait to receive `NUM_MESSAGES` messages, and then record them in
+            // `outcomes`.
+            let server = shuttle::asynch::spawn_named(
+                async move {
+                    let (mut socket, _) = listener.accept().await.unwrap();
+                    let mut buf: [u8; 4] = [0; 4];
+                    let msg = socket.read(&mut buf).await.unwrap();
+                    println!("Read {:?} bytes", msg);
+                },
+                Some("Server".to_string()),
+            );
+
+            // Each client will connect to the server and send its single message.
+            let _client = shuttle::asynch::spawn_named(
+                async move {
+                    let mut stream = TcpStream::connect(addr).await.unwrap();
+                    let _ = stream.write_u8(7).await;
+                    let _ = stream.write_u8(8).await;
+                    let _ = stream.write_u8(9).await;
+                },
+                Some("client".to_string()),
+            );
+
+            // let _res = tokio_utils::run_tokio_server_with_runtime(rt.clone(), server);
+            let _ = asynch::block_on(server); //
+        },
+        1, // ITERATIONS,
+    );
+
+}
+
+#[test]
 fn one_way_server() {
     check_random(
         move || {
@@ -325,7 +375,7 @@ fn triple_echo_closure() {
         .collect::<Vec<_>>();
 
     let mut servers = Vec::with_capacity(3);
-    for _i in 0..3 {
+    for _i in 0..1 {
         let listener = listener.clone();
         let addr2s = addr2s.clone();
 
@@ -382,6 +432,6 @@ fn triple_echo() {
 fn triple_echo_replay() {
     replay(
         triple_echo_closure,
-        "910423a893f6f1ee93e9f6f201400040000006000494930c4a4a39a4162baa99860c5a",
+        "910422ed878fbfb688cd89534000000800062000a0941a52ac2ca78e61aaa0839602",
     );
 }

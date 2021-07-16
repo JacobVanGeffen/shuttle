@@ -1,3 +1,5 @@
+use crate::runtime::execution::ExecutionState;
+
 use super::{SocketAddr, CONNECT_TABLE, PORT_COUNTER};
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::future::poll_fn;
@@ -23,6 +25,7 @@ pub struct TcpStream {
 struct Inner {
     sender: UnboundedSender<u8>,
     receiver: UnboundedReceiver<u8>,
+    written_before_yield: Option<usize>,
 }
 
 impl TcpStream {
@@ -67,7 +70,7 @@ impl TcpStream {
     }
 
     fn new(addr: SocketAddr, peer: SocketAddr, sender: UnboundedSender<u8>, receiver: UnboundedReceiver<u8>) -> TcpStream {
-        let inner = Mutex::new(Inner { sender, receiver });
+        let inner = Mutex::new(Inner { sender, receiver, written_before_yield: None});
         TcpStream { addr, peer, inner}
     }
 
@@ -117,6 +120,9 @@ impl AsyncRead for TcpStream {
                     println!("Reading Some({:?})", x);
                     written = true;
                     buf.put_slice(&[x; 1]);
+                    if buf.remaining() == 0 {
+                        return Poll::Ready(Ok(()));
+                    }
                 }
                 Poll::Ready(None) => {
                     println!("Reading None");
@@ -131,23 +137,36 @@ impl AsyncWrite for TcpStream {
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
         println!("Poll write from {:?} with buffer {:?}", self, buf);
         let mut inner = self.inner.lock().unwrap();
+        let written = inner.written_before_yield;
+        let buf = if written.is_some() {
+            &buf[written.unwrap()..]
+        } else {
+            buf
+        };
         let sender = &mut inner.sender;
-        let mut written = 0usize;
         for i in buf {
             let res = sender.poll_ready_unpin(cx);
             match res {
                 Poll::Pending =>
-                    if written == 0 {
+                    if written.is_none() {
                         return Poll::Pending;
                     } else {
-                        return Poll::Ready(Ok(written));
+                        return Poll::Ready(Ok(written.unwrap()));
                     },
                 Poll::Ready(Ok(_)) => {
-                    written = written + 1;
                     let res = sender.start_send(*i);
                     if res.is_err() {
                         return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "SendError during start_send")));
                     }
+                    (*inner).written_before_yield = match written {
+                        None => Some(1),
+                        Some(x) => Some(x + 1),
+                    };
+                    println!("about to yield");
+                    // Perform a yield
+                    cx.waker().wake_by_ref();
+                    ExecutionState::request_yield();
+                    return Poll::Pending;
                 },
                 Poll::Ready(Err(_e)) =>
                     return Poll::Ready(Err(io::Error::new(
@@ -156,6 +175,7 @@ impl AsyncWrite for TcpStream {
                     ))),
             }
         }
+        (*inner).written_before_yield = None;
         Poll::Ready(Ok(buf.len()))
     }
 
