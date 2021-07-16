@@ -98,6 +98,10 @@ impl Execution {
                         .map(|t| (t.id, t.state))
                         .collect::<SmallVec<[_; DEFAULT_INLINE_TASKS]>>();
                     if task_states.iter().any(|(_, s)| *s == TaskState::Blocked) {
+                        // TODO remove
+                        for (tid, ts) in task_states.clone() {
+                            println!("{:?} is named {:?} and is in state {:?}", tid, state.get(tid).name(), ts);
+                        }
                         NextStep::Failure(
                             format!("deadlock! runnable tasks: {:?}", task_states),
                             state.current_schedule.clone(),

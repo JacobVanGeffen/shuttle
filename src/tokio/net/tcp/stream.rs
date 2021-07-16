@@ -1,5 +1,5 @@
 use super::{SocketAddr, CONNECT_TABLE, PORT_COUNTER};
-use futures::channel::mpsc::{channel, Receiver, Sender};
+use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::future::poll_fn;
 use futures::SinkExt;
 use futures::StreamExt;
@@ -21,8 +21,8 @@ pub struct TcpStream {
 }
 
 struct Inner {
-    sender: Sender<u8>,
-    receiver: Receiver<u8>,
+    sender: UnboundedSender<u8>,
+    receiver: UnboundedReceiver<u8>,
 }
 
 impl TcpStream {
@@ -44,7 +44,8 @@ impl TcpStream {
             match sender {
                 None => Poll::Pending,
                 Some(sender) => {
-                    let sender_ready = sender.poll_ready_unpin(cx);
+                    // TODO is this clone necessary?
+                    let sender_ready = sender.clone().poll_ready_unpin(cx);
                     println!("Sender ready: {:?}", sender_ready);
                     match sender_ready {
                         Poll::Pending => Poll::Pending,
@@ -52,8 +53,8 @@ impl TcpStream {
                             // NOTE: Data channels are mpsc, whereas the connection channels are oneshot
                             // TODO: the streams should actually get two channels (one sender/receiver each)
                             // TODO: I think these channels should have infinite capacity?
-                            let (other_sender, my_receiver) = channel::<u8>(0);
-                            let (my_sender, other_receiver) = channel::<u8>(0);
+                            let (other_sender, my_receiver) = unbounded::<u8>();
+                            let (my_sender, other_receiver) = unbounded::<u8>();
                             // TODO handle when this is an error
                             let _res = sender.start_send((TcpStream::new(peer, addr, other_sender, other_receiver), peer));
                             println!("Send the connection stream");
@@ -65,7 +66,7 @@ impl TcpStream {
         })
     }
 
-    fn new(addr: SocketAddr, peer: SocketAddr, sender: Sender<u8>, receiver: Receiver<u8>) -> TcpStream {
+    fn new(addr: SocketAddr, peer: SocketAddr, sender: UnboundedSender<u8>, receiver: UnboundedReceiver<u8>) -> TcpStream {
         let inner = Mutex::new(Inner { sender, receiver });
         TcpStream { addr, peer, inner}
     }

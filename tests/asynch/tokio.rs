@@ -297,14 +297,14 @@ fn triple_echo_closure() {
         .map(|(i, l)| {
             let addr = addr.clone();
             asynch::spawn_named(async move {
-                println!("hit client");
+                println!("hit client {:?}", i);
                 // TODO NEXT Create SocketAddr where all functions are pass-through
                 // TODO but also has:
                 // (1) an Arc<Option<TaskId>> (also mutex?) for the task of the listener accepting (which is updated on l.accept(), used on TcpStream::connect)
                 // .      (should this be a vec instead of an option? in case somehow multiple tasks are trying to accept the listener)
                 // (2) an Arc<Vec<TaskId>> (also mutex?) for the tasks
                 let mut stream = TcpStream::connect(addr).await.unwrap();
-                println!("client got stream");
+                println!("client {:?} got stream", i);
                 stream.write_u8(i).await.unwrap();
                 println!("client wrote: {:?}", i);
                 let mut buf: [u8; 1024] = [0; 1024];
@@ -314,7 +314,7 @@ fn triple_echo_closure() {
                 // let stream = asynch::block_on(async move { TcpStream::connect(addr).await.unwrap() });
                 // println!("Got stream: {:?}", stream);
                 let (mut socket, _) = l.accept().await.unwrap();
-                println!("Got socket");
+                println!("Got socket for client {:?}", i);
                 #[allow(unused)]
                 match socket.read(&mut buf).await {
                     Ok(n) => println!("Got back: {:?}", &buf[0..n]), // panic!("expected at client {:?}", i), //

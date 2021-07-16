@@ -1,5 +1,5 @@
 use super::CONNECT_TABLE;
-use futures::channel::mpsc::{channel, Receiver};
+use futures::channel::mpsc::{unbounded, UnboundedReceiver};
 use futures::StreamExt;
 //use crate::runtime::task::TaskId;
 use super::TcpStream;
@@ -15,7 +15,7 @@ use std::task::{Context, Poll};
 
 /// TODO Document
 pub struct TcpListener {
-    receiver: Mutex<Receiver<(TcpStream, SocketAddr)>>,
+    receiver: Mutex<UnboundedReceiver<(TcpStream, SocketAddr)>>,
     addr: SocketAddr,
 }
 
@@ -33,7 +33,7 @@ impl TcpListener {
 
     /// TODO Document
     fn bind_addr(addr: SocketAddr) -> io::Result<TcpListener> {
-        let (sender, receiver) = channel::<(TcpStream, SocketAddr)>(0);
+        let (sender, receiver) = unbounded::<(TcpStream, SocketAddr)>();
         CONNECT_TABLE.with(|state| state.lock().unwrap().insert(addr, sender));
         Ok(TcpListener {
             receiver: Mutex::new(receiver),
