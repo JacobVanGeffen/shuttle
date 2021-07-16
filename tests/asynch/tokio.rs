@@ -248,9 +248,12 @@ fn send_three_bytes() {
             let _client = shuttle::asynch::spawn_named(
                 async move {
                     let mut stream = TcpStream::connect(addr).await.unwrap();
-                    let _ = stream.write_u8(7).await;
-                    let _ = stream.write_u8(8).await;
-                    let _ = stream.write_u8(9).await;
+                    let res = stream.write_u8(7).await;
+                    println!("res {:?}", res);
+                    let res = stream.write_u8(8).await;
+                    println!("res {:?}", res);
+                    let res = stream.write_u8(9).await;
+                    println!("res {:?}", res);
                 },
                 Some("client".to_string()),
             );
@@ -355,7 +358,8 @@ fn triple_echo_closure() {
                 // (2) an Arc<Vec<TaskId>> (also mutex?) for the tasks
                 let mut stream = TcpStream::connect(addr).await.unwrap();
                 println!("client {:?} got stream", i);
-                stream.write_u8(i).await.unwrap();
+                let res = stream.write_u8(i+1).await;
+                println!("Write res for client {:?}: {:?}", i, res);
                 println!("client wrote: {:?}", i);
                 let mut buf: [u8; 1024] = [0; 1024];
                 // TODO remove
@@ -375,19 +379,22 @@ fn triple_echo_closure() {
         .collect::<Vec<_>>();
 
     let mut servers = Vec::with_capacity(3);
-    for _i in 0..1 {
+    for i in 0..3 {
         let listener = listener.clone();
         let addr2s = addr2s.clone();
+        let (mut socket, _) = asynch::block_on(async move { listener.accept().await }).unwrap();
 
         let server = asynch::spawn_named(async move {
-            println!("before server receiving socket");
-            let (mut socket, _) = asynch::block_on(async move { listener.accept().await }).unwrap();
-            println!("past server receiving socket");
+            println!("before server {:?} receiving socket", i);
+            // NOTE: CANNOT call listener.accept() multiple times before getting a single connection
+            // .     This is because accept() is backed by mpsc, so only one listener will get woken up
+            // let (mut socket, _) = listener.accept().await.unwrap();
+            println!("past server {:?} receiving socket", i);
             let mut buf = [0; 1024];
 
             // In a loop, read data from the socket and write the data back.
             loop {
-                println!("About to read from the server");
+                println!("About to read from the server {:?}", i);
                 let n = match socket.read(&mut buf).await {
                     // socket closed
                     Ok(n) if n == 0 => return,
@@ -397,18 +404,19 @@ fn triple_echo_closure() {
                         return;
                     }
                 };
+                println!("Read {:?} from server {:?}", buf[0], i);
 
                 // Write the data back
-                println!("About to TcpStream::connect on the server");
-                println!("addr2s: {:?}", addr2s);
-                let mut stream = TcpStream::connect(addr2s[buf[0] as usize].clone()).await.unwrap();
-                println!("About to write from the server");
+                println!("About to TcpStream::connect on the server {:?}", i);
+                let mut stream = TcpStream::connect(addr2s[(buf[0]-1) as usize].clone()).await.unwrap();
+                println!("About to write from the server {:?}", i);
                 if let Err(e) = stream.write_all(&buf[0..n]).await {
                     eprintln!("failed to write to socket; err = {:?}", e);
                     return;
                 }
+                println!("Finished write from the server {:?}", i);
             }
-        }, Some("server".to_string()));
+        }, Some(format!("server {:?}", i)));
         servers.push(server);
     }
 
@@ -432,6 +440,6 @@ fn triple_echo() {
 fn triple_echo_replay() {
     replay(
         triple_echo_closure,
-        "910422ed878fbfb688cd89534000000800062000a0941a52ac2ca78e61aaa0839602",
+        "91041ba7a3eea8c5c8b497c90100084000000600049ca2964a4721830c5a",
     );
 }

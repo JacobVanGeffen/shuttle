@@ -38,12 +38,12 @@ impl TcpStream {
         CONNECT_TABLE.with(|state| {
             println!("doing poll_connect on addr: {:?}", addr);
             let mut state = state.lock().unwrap();
-            println!("removing at addr: {:?}", addr);
+            println!("getting sender at addr: {:?}", addr);
             // NOTE: This might not be used if sender is none, but we need to keep the mutable sender reference.
             // NOTE: Since we need an immutable reference to state to get peer, make the peer first
             let peer = TcpStream::new_socket_addr(|s| state.contains_key(s), addr.ip());
             let sender = state.get_mut(&addr);
-            println!("removed sender: {:?}", sender);
+            println!("got sender: {:?}", sender);
             match sender {
                 None => Poll::Pending,
                 Some(sender) => {
@@ -59,8 +59,8 @@ impl TcpStream {
                             let (other_sender, my_receiver) = unbounded::<u8>();
                             let (my_sender, other_receiver) = unbounded::<u8>();
                             // TODO handle when this is an error
-                            let _res = sender.start_send((TcpStream::new(peer, addr, other_sender, other_receiver), peer));
-                            println!("Send the connection stream");
+                            let res = sender.start_send((TcpStream::new(peer, addr, other_sender, other_receiver), peer));
+                            println!("Send the connection stream, with result: {:?}", res);
                             Poll::Ready(Ok(TcpStream::new(addr, peer, my_sender, my_receiver)))
                         }
                     }
@@ -144,6 +144,7 @@ impl AsyncWrite for TcpStream {
             buf
         };
         let sender = &mut inner.sender;
+        // TODO don't make this a loop b/c it only ever does one or zero iterations
         for i in buf {
             let res = sender.poll_ready_unpin(cx);
             match res {
@@ -176,7 +177,7 @@ impl AsyncWrite for TcpStream {
             }
         }
         (*inner).written_before_yield = None;
-        Poll::Ready(Ok(buf.len()))
+        Poll::Ready(Ok(written.unwrap()))
     }
 
     #[inline]

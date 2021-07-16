@@ -43,13 +43,17 @@ impl TcpListener {
 
     /// TODO Document
     pub async fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
-        futures::future::poll_fn(|cx| self.poll_accept(cx)).await
+        let res = futures::future::poll_fn(|cx| self.poll_accept(cx)).await;
+        println!("accept done");
+        res
     }
 
     /// TODO Document
     fn poll_accept(&self, cx: &mut Context<'_>) -> Poll<io::Result<(TcpStream, SocketAddr)>> {
+        println!("poll_accept reading from receiver at listener {:?}", self.addr);
         let mut receiver = self.receiver.lock().unwrap();
         let result = receiver.poll_next_unpin(cx);
+        println!("poll_accept got result {:?}", result);
         match result {
             Poll::Pending => Poll::Pending,
             // TODO actually use e
