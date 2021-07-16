@@ -284,9 +284,9 @@ fn triple_echo_closure() {
     let addr = listener.local_addr().unwrap();
 
     let mut listener2s = Vec::with_capacity(3);
-    listener2s.push(asynch::block_on(TcpListener::bind("127.0.0.1:8180")).unwrap());
     listener2s.push(asynch::block_on(TcpListener::bind("127.0.0.1:8181")).unwrap());
-    listener2s.push(asynch::block_on(TcpListener::bind("127.0.0.1:8182")).unwrap());
+    listener2s.push(asynch::block_on(TcpListener::bind("127.0.0.1:8282")).unwrap());
+    listener2s.push(asynch::block_on(TcpListener::bind("127.0.0.1:8383")).unwrap());
     let mut addr2s = Vec::with_capacity(3);
     addr2s.push(listener2s[0].local_addr().unwrap());
     addr2s.push(listener2s[1].local_addr().unwrap());
@@ -296,7 +296,7 @@ fn triple_echo_closure() {
         .zip(listener2s)
         .map(|(i, l)| {
             let addr = addr.clone();
-            asynch::spawn(async move {
+            asynch::spawn_named(async move {
                 println!("hit client");
                 // TODO NEXT Create SocketAddr where all functions are pass-through
                 // TODO but also has:
@@ -309,9 +309,10 @@ fn triple_echo_closure() {
                 println!("client wrote: {:?}", i);
                 let mut buf: [u8; 1024] = [0; 1024];
                 // TODO remove
-                let addr = l.local_addr().unwrap();
-                let stream = asynch::block_on(async move { TcpStream::connect(addr).await.unwrap() });
-                println!("Got stream: {:?}", stream);
+                // let addr = l.local_addr().unwrap();
+                // TODO does this cause a problem? if so, why?
+                // let stream = asynch::block_on(async move { TcpStream::connect(addr).await.unwrap() });
+                // println!("Got stream: {:?}", stream);
                 let (mut socket, _) = l.accept().await.unwrap();
                 println!("Got socket");
                 #[allow(unused)]
@@ -319,7 +320,7 @@ fn triple_echo_closure() {
                     Ok(n) => println!("Got back: {:?}", &buf[0..n]), // panic!("expected at client {:?}", i), //
                     Err(e) => println!("failed to read from socket on client; err = {:?}", e), // panic!("expected at client {:?}", i), //
                 };
-            })
+            }, Some(format!("client {:?}", i)))
         })
         .collect::<Vec<_>>();
 
@@ -328,12 +329,15 @@ fn triple_echo_closure() {
         let listener = listener.clone();
         let addr2s = addr2s.clone();
 
-        let server = asynch::spawn(async move {
+        let server = asynch::spawn_named(async move {
+            println!("before server receiving socket");
             let (mut socket, _) = asynch::block_on(async move { listener.accept().await }).unwrap();
+            println!("past server receiving socket");
             let mut buf = [0; 1024];
 
             // In a loop, read data from the socket and write the data back.
             loop {
+                println!("About to read from the server");
                 let n = match socket.read(&mut buf).await {
                     // socket closed
                     Ok(n) if n == 0 => return,
@@ -345,13 +349,16 @@ fn triple_echo_closure() {
                 };
 
                 // Write the data back
+                println!("About to TcpStream::connect on the server");
+                println!("addr2s: {:?}", addr2s);
                 let mut stream = TcpStream::connect(addr2s[buf[0] as usize].clone()).await.unwrap();
+                println!("About to write from the server");
                 if let Err(e) = stream.write_all(&buf[0..n]).await {
                     eprintln!("failed to write to socket; err = {:?}", e);
                     return;
                 }
             }
-        });
+        }, Some("server".to_string()));
         servers.push(server);
     }
 
@@ -375,8 +382,6 @@ fn triple_echo() {
 fn triple_echo_replay() {
     replay(
         triple_echo_closure,
-        "910419a4d3b2baa3a7a9b9ea01000840003000000428b314324ca1960a",
+        "910423a893f6f1ee93e9f6f201400040000006000494930c4a4a39a4162baa99860c5a",
     );
-    // "91052e8187e99fb2e9eec68b010020000001180000200005311026298c047016e0609446798ea4401804321886511203",);
-    // "910537d6e09ab8e3e99ed8d2018000000001000680008005401804389884710ce6489a82610ca45094074a14863912853198024914c600");
 }

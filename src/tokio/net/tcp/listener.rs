@@ -1,9 +1,8 @@
 use super::CONNECT_TABLE;
-use futures::channel::oneshot::{channel, Receiver};
-use futures::FutureExt;
+use futures::channel::mpsc::{channel, Receiver};
+use futures::StreamExt;
 //use crate::runtime::task::TaskId;
 use super::TcpStream;
-use std::cell::RefCell;
 //use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt;
@@ -34,8 +33,8 @@ impl TcpListener {
 
     /// TODO Document
     fn bind_addr(addr: SocketAddr) -> io::Result<TcpListener> {
-        let (sender, receiver) = channel::<(TcpStream, SocketAddr)>();
-        CONNECT_TABLE.with(|state| state.lock().unwrap().insert(addr, RefCell::new(sender)));
+        let (sender, receiver) = channel::<(TcpStream, SocketAddr)>(0);
+        CONNECT_TABLE.with(|state| state.lock().unwrap().insert(addr, sender));
         Ok(TcpListener {
             receiver: Mutex::new(receiver),
             addr,
@@ -50,12 +49,13 @@ impl TcpListener {
     /// TODO Document
     fn poll_accept(&self, cx: &mut Context<'_>) -> Poll<io::Result<(TcpStream, SocketAddr)>> {
         let mut receiver = self.receiver.lock().unwrap();
-        let result = receiver.poll_unpin(cx);
+        let result = receiver.poll_next_unpin(cx);
         match result {
             Poll::Pending => Poll::Pending,
             // TODO actually use e
-            Poll::Ready(Err(e)) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "Channel cancelled"))),
-            Poll::Ready(Ok(pair)) => Poll::Ready(Ok(pair)),
+            // Poll::Ready(Err(e)) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "Channel cancelled"))),
+            Poll::Ready(None) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "Channel received unexpected end of file"))),
+            Poll::Ready(Some(pair)) => Poll::Ready(Ok(pair)),
         }
     }
 

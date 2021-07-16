@@ -31,30 +31,37 @@ impl TcpStream {
         poll_fn(|cx| TcpStream::poll_connect(addr, cx)).await
     }
 
-    fn poll_connect(addr: SocketAddr, _cx: &mut Context<'_>) -> Poll<io::Result<TcpStream>> {
+    fn poll_connect(addr: SocketAddr, cx: &mut Context<'_>) -> Poll<io::Result<TcpStream>> {
         CONNECT_TABLE.with(|state| {
+            println!("doing poll_connect on addr: {:?}", addr);
             let mut state = state.lock().unwrap();
-            // TODO we should actually add back a new channel to the state, in case someone else wants to connect
-            let sender = state.remove(&addr);
-            let result = match sender {
-                None => Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "SocketAddr not found in connection table",
-                )),
+            println!("removing at addr: {:?}", addr);
+            // NOTE: This might not be used if sender is none, but we need to keep the mutable sender reference.
+            // NOTE: Since we need an immutable reference to state to get peer, make the peer first
+            let peer = TcpStream::new_socket_addr(|s| state.contains_key(s), addr.ip());
+            let sender = state.get_mut(&addr);
+            println!("removed sender: {:?}", sender);
+            match sender {
+                None => Poll::Pending,
                 Some(sender) => {
-                    let sender = sender.into_inner();
-                    let peer = TcpStream::new_socket_addr(|s| state.contains_key(s), addr.ip());
-                    // NOTE: Data channels are mpsc, whereas the connection channels are oneshot
-                    // TODO: the streams should actually get two channels (one sender/receiver each)
-                    // TODO: I think these channels should have infinite capacity?
-                    let (other_sender, my_receiver) = channel::<u8>(0);
-                    let (my_sender, other_receiver) = channel::<u8>(0);
-                    // TODO handle when this is an error
-                    let _res = sender.send((TcpStream::new(peer, addr, other_sender, other_receiver), peer));
-                    Ok(TcpStream::new(addr, peer, my_sender, my_receiver))
+                    let sender_ready = sender.poll_ready_unpin(cx);
+                    println!("Sender ready: {:?}", sender_ready);
+                    match sender_ready {
+                        Poll::Pending => Poll::Pending,
+                        Poll::Ready(_) => {
+                            // NOTE: Data channels are mpsc, whereas the connection channels are oneshot
+                            // TODO: the streams should actually get two channels (one sender/receiver each)
+                            // TODO: I think these channels should have infinite capacity?
+                            let (other_sender, my_receiver) = channel::<u8>(0);
+                            let (my_sender, other_receiver) = channel::<u8>(0);
+                            // TODO handle when this is an error
+                            let _res = sender.start_send((TcpStream::new(peer, addr, other_sender, other_receiver), peer));
+                            println!("Send the connection stream");
+                            Poll::Ready(Ok(TcpStream::new(addr, peer, my_sender, my_receiver)))
+                        }
+                    }
                 }
-            };
-            Poll::Ready(result)
+            }
         })
     }
 
@@ -90,6 +97,7 @@ impl TcpStream {
 
 impl AsyncRead for TcpStream {
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+        println!("Poll read from {:?} with buffer {:?}", self, buf);
         let mut inner =  self.inner.lock().unwrap();
         let receiver = &mut inner.receiver;
         let mut written = false;
@@ -98,15 +106,21 @@ impl AsyncRead for TcpStream {
                 // TODO might want to assert that the buffer is not full on the first two branches
                 Poll::Pending => 
                     if !written {
+                        println!("Reading pending, and haven't written");
                         return Poll::Pending;
                     } else {
+                        println!("Reading pending, but have written");
                         return Poll::Ready(Ok(()));
                     },
                 Poll::Ready(Some(x)) => {
+                    println!("Reading Some({:?})", x);
                     written = true;
                     buf.put_slice(&[x; 1]);
                 }
-                Poll::Ready(None) => return Poll::Ready(Ok(())),
+                Poll::Ready(None) => {
+                    println!("Reading None");
+                    return Poll::Ready(Ok(()));
+                },
             }
         }
     }
@@ -114,6 +128,7 @@ impl AsyncRead for TcpStream {
 
 impl AsyncWrite for TcpStream {
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        println!("Poll write from {:?} with buffer {:?}", self, buf);
         let mut inner = self.inner.lock().unwrap();
         let sender = &mut inner.sender;
         let mut written = 0usize;
