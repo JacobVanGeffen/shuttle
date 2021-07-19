@@ -36,20 +36,16 @@ impl TcpStream {
 
     fn poll_connect(addr: SocketAddr, cx: &mut Context<'_>) -> Poll<io::Result<TcpStream>> {
         CONNECT_TABLE.with(|state| {
-            println!("doing poll_connect on addr: {:?}", addr);
             let mut state = state.lock().unwrap();
-            println!("getting sender at addr: {:?}", addr);
             // NOTE: This might not be used if sender is none, but we need to keep the mutable sender reference.
             // NOTE: Since we need an immutable reference to state to get peer, make the peer first
             let peer = TcpStream::new_socket_addr(|s| state.contains_key(s), addr.ip());
             let sender = state.get_mut(&addr);
-            println!("got sender: {:?}", sender);
             match sender {
                 None => Poll::Pending,
                 Some(sender) => {
                     // TODO is this clone necessary?
                     let sender_ready = sender.clone().poll_ready_unpin(cx);
-                    println!("Sender ready: {:?}", sender_ready);
                     match sender_ready {
                         Poll::Pending => Poll::Pending,
                         Poll::Ready(_) => {
@@ -59,8 +55,7 @@ impl TcpStream {
                             let (other_sender, my_receiver) = unbounded::<u8>();
                             let (my_sender, other_receiver) = unbounded::<u8>();
                             // TODO handle when this is an error
-                            let res = sender.start_send((TcpStream::new(peer, addr, other_sender, other_receiver), peer));
-                            println!("Send the connection stream, with result: {:?}", res);
+                            let _ = sender.start_send((TcpStream::new(peer, addr, other_sender, other_receiver), peer));
                             Poll::Ready(Ok(TcpStream::new(addr, peer, my_sender, my_receiver)))
                         }
                     }
@@ -101,7 +96,6 @@ impl TcpStream {
 
 impl AsyncRead for TcpStream {
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
-        println!("Poll read from {:?} with buffer {:?}", self, buf);
         let mut inner =  self.inner.lock().unwrap();
         let receiver = &mut inner.receiver;
         let mut written = false;
@@ -110,14 +104,11 @@ impl AsyncRead for TcpStream {
                 // TODO might want to assert that the buffer is not full on the first two branches
                 Poll::Pending => 
                     if !written {
-                        println!("Reading pending, and haven't written");
                         return Poll::Pending;
                     } else {
-                        println!("Reading pending, but have written");
                         return Poll::Ready(Ok(()));
                     },
                 Poll::Ready(Some(x)) => {
-                    println!("Reading Some({:?})", x);
                     written = true;
                     buf.put_slice(&[x; 1]);
                     if buf.remaining() == 0 {
@@ -125,7 +116,6 @@ impl AsyncRead for TcpStream {
                     }
                 }
                 Poll::Ready(None) => {
-                    println!("Reading None");
                     return Poll::Ready(Ok(()));
                 },
             }
@@ -135,7 +125,6 @@ impl AsyncRead for TcpStream {
 
 impl AsyncWrite for TcpStream {
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
-        println!("Poll write from {:?} with buffer {:?}", self, buf);
         let mut inner = self.inner.lock().unwrap();
         let written = inner.written_before_yield;
         let buf = if written.is_some() {
@@ -163,7 +152,6 @@ impl AsyncWrite for TcpStream {
                         None => Some(1),
                         Some(x) => Some(x + 1),
                     };
-                    println!("about to yield");
                     // Perform a yield
                     cx.waker().wake_by_ref();
                     ExecutionState::request_yield();
