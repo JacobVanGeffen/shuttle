@@ -324,6 +324,98 @@ fn one_way_server() {
     );
 }
 
+#[test]
+fn disconnect_writer() {
+    check_random(
+        move || {
+            let rt = Arc::new(
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_io()
+                    .build()
+                    .unwrap(),
+            );
+            let rt_clone = rt.clone();
+            let _enter = rt_clone.enter();
+
+            // Bind synchronously, and let the OS choose a port to listen on.
+            let listener = shuttle::asynch::block_on(TcpListener::bind("127.0.0.1:8080")).unwrap();
+            let addr = listener.local_addr().unwrap();
+
+            println!("Got the listeners");
+
+            // The server will wait to receive `NUM_MESSAGES` messages, and then record them in
+            // `outcomes`.
+            let server = shuttle::asynch::spawn_named(
+                async move {
+                    let (mut stream, _) = listener.accept().await.unwrap();
+                    let read_res = stream.read_u32().await;
+                    println!("Result of read: {:?}", read_res);
+                },
+                Some("Server".to_string()),
+            );
+
+            // Each client will connect to the server and send its single message.
+            let _client = shuttle::asynch::spawn_named(
+                async move {
+                    let _ = TcpStream::connect(addr).await.unwrap();
+                    // Disconnect before performing a write
+                },
+                Some("client".to_string()),
+            );
+
+            // let _res = tokio_utils::run_tokio_server_with_runtime(rt.clone(), server);
+            let _ = asynch::block_on(server); //
+        },
+        1, // ITERATIONS,
+    );
+}
+
+#[test]
+fn disconnect_reader() {
+    check_random(
+        move || {
+            let rt = Arc::new(
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_io()
+                    .build()
+                    .unwrap(),
+            );
+            let rt_clone = rt.clone();
+            let _enter = rt_clone.enter();
+
+            // Bind synchronously, and let the OS choose a port to listen on.
+            let listener = shuttle::asynch::block_on(TcpListener::bind("127.0.0.1:8080")).unwrap();
+            let addr = listener.local_addr().unwrap();
+
+            println!("Got the listeners");
+
+            // The server will wait to receive `NUM_MESSAGES` messages, and then record them in
+            // `outcomes`.
+            let server = shuttle::asynch::spawn_named(
+                async move {
+                    let _ = listener.accept().await.unwrap();
+                    // Disconnect before receiving the write
+                },
+                Some("Server".to_string()),
+            );
+
+            // Each client will connect to the server and send its single message.
+            let _client = shuttle::asynch::spawn_named(
+                async move {
+                    let mut stream = TcpStream::connect(addr).await.unwrap();
+                    let write_res = stream.write_u32(0x12345678).await;
+                    println!("Result of write: {:?}", write_res);
+                },
+                Some("client".to_string()),
+            );
+
+            // let _res = tokio_utils::run_tokio_server_with_runtime(rt.clone(), server);
+            let _ = asynch::block_on(server); //
+        },
+        1, // ITERATIONS,
+    );
+}
+
 fn triple_echo_closure() {
     let rt = Arc::new(
         tokio::runtime::Builder::new_current_thread()
