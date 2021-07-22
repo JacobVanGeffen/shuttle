@@ -12,6 +12,14 @@ thread_local! {
     pub(crate) static PORT_COUNTER: Mutex<HashMap<IpAddr, u16>> = Mutex::new(HashMap::new());
 }
 
+/// Reset the global connection table. This hack is necessary because shuttle doesn't yet support `lazy_static`
+pub fn reset_connect_table() {
+    CONNECT_TABLE.with(|state| {
+        let mut state = state.lock().unwrap();
+        *state = HashMap::new();
+    });
+}
+
 mod listener;
 #[allow(unused)]
 mod registration;

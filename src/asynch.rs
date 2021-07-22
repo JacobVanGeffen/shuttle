@@ -58,6 +58,12 @@ pub enum JoinError {
     Cancelled,
 }
 
+impl ToString for JoinError {
+    fn to_string(&self) -> String {
+        "Task cancelled".to_string()
+    }
+}
+
 impl<T> Future for JoinHandle<T> {
     type Output = Result<T, JoinError>;
 

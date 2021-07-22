@@ -12,6 +12,7 @@ use std::pin::Pin;
 use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
+use std::time::Duration;
 use tokio::io::ReadBuf;
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -91,6 +92,15 @@ impl TcpStream {
     /// TODO Document
     pub fn split<'a>(&'a mut self) -> (tokio::net::tcp::ReadHalf<'a>, tokio::net::tcp::WriteHalf<'a>) {
         unimplemented!()
+    }
+
+    /// Sets the behavior of the stream after being closed
+    pub fn set_linger(&self, _: Option<Duration>) -> io::Result<()>{
+        // TODO in reality, this should do something b/c this will change the behavior
+        // .    of the stream after the write portion closes
+        // Don't do anything because we don't model time
+        // TODO Should this use shuttle random to return Err?
+        Ok(())
     }
 }
 

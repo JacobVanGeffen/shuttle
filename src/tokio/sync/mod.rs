@@ -1,0 +1,60 @@
+//! Shuttle's implementation of [`tokio::sync`].
+
+// pub use tokio::sync::*;
+
+use std::sync::LockResult;
+use crate::sync::MutexGuard;
+
+/// A mutex, the same as [`std::sync::Mutex`].
+#[derive(Debug)]
+pub struct Mutex<T> {
+    inner: crate::sync::Mutex<T>,
+}
+
+// TODO tests (see tokio's tests)
+impl<T> Mutex<T> {
+    /// Creates a new mutex in an unlocked state ready for use.
+    pub fn new(value: T) -> Self {
+        Self {
+            inner: crate::sync::Mutex::new(value),
+        }
+    }
+
+    /// Acquires a mutex, blocking the current thread until it is able to do so.
+    pub async fn lock(&self) -> MutexGuard<'_, T> {
+        match self.inner.lock() {
+            Ok(ret) => ret,
+            Err(_e) => panic!("Lock future failed"),
+        }
+    }
+
+    /// Calls the shuttle::sync::Mutex::lock function
+    pub fn try_lock(&self) -> LockResult<MutexGuard<'_, T>> {
+        self.inner.lock()
+    }
+}
+
+unsafe impl<T: Send> Send for Mutex<T> {}
+unsafe impl<T: Send> Sync for Mutex<T> {}
+
+impl<T: Default> Default for Mutex<T> {
+    fn default() -> Self {
+        Self::new(Default::default())
+    }
+}
+
+// Temporarily use tokio channels, TODO remove later
+// TODO/NEXT: just try using the futures crate channels, then test for concurrency (see Rajeev tests, think about edge cases)
+pub use tokio::sync::{oneshot, mpsc};
+
+// NOTE: Probably want to implement tokio Mutex's over shuttle's, but not include FIFO behavior
+// TODO
+// MPSC mock implementation
+/*
+pub mod mpsc {
+    pub use crate::sync::mpsc::*;
+    pub use crate::sync::mpsc::SyncSender as Sender;
+    pub use crate::sync::mpsc::channel as unbounded;
+    pub use crate::sync::mpsc::sync_channel as channel;
+}
+*/

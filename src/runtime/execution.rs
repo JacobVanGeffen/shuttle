@@ -458,6 +458,7 @@ impl ExecutionState {
     /// scheduler is being invoked from within a running task. If scheduling fails, returns an Err
     /// with a String describing the failure.
     fn schedule(&mut self) -> Result<(), String> {
+        println!("Next task: {:?}", self.next_task);
         // Don't schedule twice. If `maybe_yield` ran the scheduler, we don't want to run it
         // again at the top of `step`.
         if self.next_task != ScheduledTask::None {

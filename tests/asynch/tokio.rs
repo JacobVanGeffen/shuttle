@@ -261,6 +261,7 @@ fn send_three_bytes() {
             // let _res = tokio_utils::run_tokio_server_with_runtime(rt.clone(), server);
             let _ = asynch::block_on(server); //
         },
+        // TODO just call a function that cleans up the global map
         1, // ITERATIONS,
     );
 
@@ -443,7 +444,6 @@ fn triple_echo_closure() {
             let addr = addr.clone();
             asynch::spawn_named(async move {
                 println!("hit client {:?}", i);
-                // TODO NEXT Create SocketAddr where all functions are pass-through
                 // TODO but also has:
                 // (1) an Arc<Option<TaskId>> (also mutex?) for the task of the listener accepting (which is updated on l.accept(), used on TcpStream::connect)
                 // .      (should this be a vec instead of an option? in case somehow multiple tasks are trying to accept the listener)
@@ -502,6 +502,7 @@ fn triple_echo_closure() {
                 println!("About to TcpStream::connect on the server {:?}", i);
                 let mut stream = TcpStream::connect(addr2s[(buf[0]-1) as usize].clone()).await.unwrap();
                 println!("About to write from the server {:?}", i);
+                // TODO write back both buf AND the server number, then assert the set is the right size (outside of the check_random)
                 if let Err(e) = stream.write_all(&buf[0..n]).await {
                     eprintln!("failed to write to socket; err = {:?}", e);
                     return;
