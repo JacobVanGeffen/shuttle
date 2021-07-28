@@ -2,8 +2,8 @@
 
 // pub use tokio::sync::*;
 
-use std::sync::LockResult;
 use crate::sync::MutexGuard;
+use std::sync::LockResult;
 
 /// A mutex, the same as [`std::sync::Mutex`].
 #[derive(Debug)]
@@ -45,7 +45,21 @@ impl<T: Default> Default for Mutex<T> {
 
 // Temporarily use tokio channels, TODO remove later
 // TODO/NEXT: just try using the futures crate channels, then test for concurrency (see Rajeev tests, think about edge cases)
-pub use tokio::sync::{oneshot, mpsc};
+// pub use tokio::sync::{mpsc, oneshot};
+pub use futures::channel::oneshot;
+
+/// TODO
+pub mod mpsc {
+    pub use futures::channel::mpsc::*;
+
+    use futures::future::poll_fn;
+    use futures::StreamExt;
+
+    /// Mimic recv function from tokio
+    pub async fn recv<T>(r: &mut Receiver<T>) -> Option<T> {
+        poll_fn(|cx| r.poll_next_unpin(cx)).await
+    }
+}
 
 // NOTE: Probably want to implement tokio Mutex's over shuttle's, but not include FIFO behavior
 // TODO

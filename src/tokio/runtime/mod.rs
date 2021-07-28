@@ -2,8 +2,8 @@
 
 // pub use tokio::runtime::*;
 
-use std::io;
 use futures::future::Future;
+use std::io;
 
 /// Mock implementation of tokio's Builder that does nothing
 #[derive(Debug)]

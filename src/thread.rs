@@ -3,6 +3,7 @@
 use crate::runtime::execution::ExecutionState;
 use crate::runtime::task::TaskId;
 use crate::runtime::thread;
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::time::Duration;
 
@@ -287,6 +288,83 @@ impl<T: 'static> LocalKey<T> {
                 Some(Err(AccessError))
             }
         })
+    }
+}
+
+/// A task local storage key which owns its contents
+// TODO this should be a refcell of option T maybe
+pub struct TaskLocalKey<T: 'static> {
+    #[doc(hidden)]
+    pub inner: LocalKey<RefCell<Option<T>>>,
+}
+
+impl<T: 'static> std::fmt::Debug for TaskLocalKey<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LocalKey").finish_non_exhaustive()
+    }
+}
+
+unsafe impl<T> Send for TaskLocalKey<T> {}
+unsafe impl<T> Sync for TaskLocalKey<T> {}
+
+// TESTS: What happens with two tasks & two task local keys are accessed at the same time?
+// .      Also, see James' tests, can copy those but for TaskLocal
+impl<T: 'static> TaskLocalKey<T> {
+    /// Acquires a reference to the value in this TLS key.
+    ///
+    /// This will lazily initialize the value if this thread has not referenced this key yet.
+    pub fn with<F, R>(&'static self, f: F) -> R
+    where
+        F: FnOnce(&T) -> R,
+    {
+        self.try_with(f).expect(
+            "cannot access a Thread Local Storage value \
+            during or after destruction",
+        )
+    }
+
+    /// Acquires a reference to the value in this TLS key.
+    ///
+    /// This will lazily initialize the value if this thread has not referenced this key yet. If the
+    /// key has been destroyed (which may happen if this is called in a destructor), this function
+    /// will return an AccessError.
+    pub fn try_with<F, R>(&'static self, f: F) -> Result<R, AccessError>
+    where
+        F: FnOnce(&T) -> R,
+    {
+        self.inner.with(|v| {
+            if let Some(val) = v.borrow().as_ref() {
+                Ok(f(val))
+            } else {
+                Err(AccessError)
+            }
+        })
+    }
+
+    /// Initialize task local variable and execute the given future
+    pub async fn scope<F>(&'static self, val: T, f: F) -> F::Output
+    where
+        F: std::future::Future,
+    {
+        self.inner.with(|ref_val| {
+            ref_val.replace(Some(val));
+        });
+
+        let res = f.await;
+
+        self.inner.with(|ref_val| {
+            ref_val.replace(None);
+        });
+
+        res
+    }
+}
+
+impl<T: Copy + 'static> TaskLocalKey<T> {
+    /// Returns a copy of the task-local value
+    /// if the task-local value implements `Copy`.
+    pub fn get(&'static self) -> T {
+        self.with(|v| *v)
     }
 }
 

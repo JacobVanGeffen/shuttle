@@ -436,3 +436,34 @@ macro_rules! __thread_local_inner {
             };
     }
 }
+
+/// Declare a new task local storage key, which can be initialized at any point
+// NOTE: Code copied from tokio
+#[macro_export]
+macro_rules! task_local {
+     // empty (base case for the recursion)
+    () => {};
+
+    ($(#[$attr:meta])* $vis:vis static $name:ident: $t:ty; $($rest:tt)*) => {
+        $crate::__task_local_inner!($(#[$attr])* $vis $name, $t);
+        $crate::task_local!($($rest)*);
+    };
+
+    ($(#[$attr:meta])* $vis:vis static $name:ident: $t:ty) => {
+        $crate::__task_local_inner!($(#[$attr])* $vis $name, $t);
+    }
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __task_local_inner {
+    ($(#[$attr:meta])* $vis:vis $name:ident, $t:ty) => {
+        $(#[$attr])* $vis const $name: $crate::thread::TaskLocalKey<$t> = {
+            shuttle::thread_local! {
+                static __KEY: std::cell::RefCell<Option<$t>> = std::cell::RefCell::new(None);
+            }
+
+            $crate::thread::TaskLocalKey { inner: __KEY }
+        };
+    };
+}

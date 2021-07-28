@@ -264,7 +264,6 @@ fn send_three_bytes() {
         // TODO just call a function that cleans up the global map
         1, // ITERATIONS,
     );
-
 }
 
 #[test]
@@ -442,31 +441,34 @@ fn triple_echo_closure() {
         .zip(listener2s)
         .map(|(i, l)| {
             let addr = addr.clone();
-            asynch::spawn_named(async move {
-                println!("hit client {:?}", i);
-                // TODO but also has:
-                // (1) an Arc<Option<TaskId>> (also mutex?) for the task of the listener accepting (which is updated on l.accept(), used on TcpStream::connect)
-                // .      (should this be a vec instead of an option? in case somehow multiple tasks are trying to accept the listener)
-                // (2) an Arc<Vec<TaskId>> (also mutex?) for the tasks
-                let mut stream = TcpStream::connect(addr).await.unwrap();
-                println!("client {:?} got stream", i);
-                let res = stream.write_u8(i+1).await;
-                println!("Write res for client {:?}: {:?}", i, res);
-                println!("client wrote: {:?}", i);
-                let mut buf: [u8; 1024] = [0; 1024];
-                // TODO remove
-                // let addr = l.local_addr().unwrap();
-                // TODO does this cause a problem? if so, why?
-                // let stream = asynch::block_on(async move { TcpStream::connect(addr).await.unwrap() });
-                // println!("Got stream: {:?}", stream);
-                let (mut socket, _) = l.accept().await.unwrap();
-                println!("Got socket for client {:?}", i);
-                #[allow(unused)]
-                match socket.read(&mut buf).await {
-                    Ok(n) => println!("Got back: {:?}", &buf[0..n]), // panic!("expected at client {:?}", i), //
-                    Err(e) => println!("failed to read from socket on client; err = {:?}", e), // panic!("expected at client {:?}", i), //
-                };
-            }, Some(format!("client {:?}", i)))
+            asynch::spawn_named(
+                async move {
+                    println!("hit client {:?}", i);
+                    // TODO but also has:
+                    // (1) an Arc<Option<TaskId>> (also mutex?) for the task of the listener accepting (which is updated on l.accept(), used on TcpStream::connect)
+                    // .      (should this be a vec instead of an option? in case somehow multiple tasks are trying to accept the listener)
+                    // (2) an Arc<Vec<TaskId>> (also mutex?) for the tasks
+                    let mut stream = TcpStream::connect(addr).await.unwrap();
+                    println!("client {:?} got stream", i);
+                    let res = stream.write_u8(i + 1).await;
+                    println!("Write res for client {:?}: {:?}", i, res);
+                    println!("client wrote: {:?}", i);
+                    let mut buf: [u8; 1024] = [0; 1024];
+                    // TODO remove
+                    // let addr = l.local_addr().unwrap();
+                    // TODO does this cause a problem? if so, why?
+                    // let stream = asynch::block_on(async move { TcpStream::connect(addr).await.unwrap() });
+                    // println!("Got stream: {:?}", stream);
+                    let (mut socket, _) = l.accept().await.unwrap();
+                    println!("Got socket for client {:?}", i);
+                    #[allow(unused)]
+                    match socket.read(&mut buf).await {
+                        Ok(n) => println!("Got back: {:?}", &buf[0..n]), // panic!("expected at client {:?}", i), //
+                        Err(e) => println!("failed to read from socket on client; err = {:?}", e), // panic!("expected at client {:?}", i), //
+                    };
+                },
+                Some(format!("client {:?}", i)),
+            )
         })
         .collect::<Vec<_>>();
 
@@ -476,40 +478,43 @@ fn triple_echo_closure() {
         let addr2s = addr2s.clone();
         let (mut socket, _) = asynch::block_on(async move { listener.accept().await }).unwrap();
 
-        let server = asynch::spawn_named(async move {
-            println!("before server {:?} receiving socket", i);
-            // NOTE: CANNOT call listener.accept() multiple times before getting a single connection
-            // .     This is because accept() is backed by mpsc, so only one listener will get woken up
-            // let (mut socket, _) = listener.accept().await.unwrap();
-            println!("past server {:?} receiving socket", i);
-            let mut buf = [0; 1024];
+        let server = asynch::spawn_named(
+            async move {
+                println!("before server {:?} receiving socket", i);
+                // NOTE: CANNOT call listener.accept() multiple times before getting a single connection
+                // .     This is because accept() is backed by mpsc, so only one listener will get woken up
+                // let (mut socket, _) = listener.accept().await.unwrap();
+                println!("past server {:?} receiving socket", i);
+                let mut buf = [0; 1024];
 
-            // In a loop, read data from the socket and write the data back.
-            loop {
-                println!("About to read from the server {:?}", i);
-                let n = match socket.read(&mut buf).await {
-                    // socket closed
-                    Ok(n) if n == 0 => return,
-                    Ok(n) => n,
-                    Err(e) => {
-                        eprintln!("failed to read from socket; err = {:?}", e);
+                // In a loop, read data from the socket and write the data back.
+                loop {
+                    println!("About to read from the server {:?}", i);
+                    let n = match socket.read(&mut buf).await {
+                        // socket closed
+                        Ok(n) if n == 0 => return,
+                        Ok(n) => n,
+                        Err(e) => {
+                            eprintln!("failed to read from socket; err = {:?}", e);
+                            return;
+                        }
+                    };
+                    println!("Read {:?} from server {:?}", buf[0], i);
+
+                    // Write the data back
+                    println!("About to TcpStream::connect on the server {:?}", i);
+                    let mut stream = TcpStream::connect(addr2s[(buf[0] - 1) as usize].clone()).await.unwrap();
+                    println!("About to write from the server {:?}", i);
+                    // TODO write back both buf AND the server number, then assert the set is the right size (outside of the check_random)
+                    if let Err(e) = stream.write_all(&buf[0..n]).await {
+                        eprintln!("failed to write to socket; err = {:?}", e);
                         return;
                     }
-                };
-                println!("Read {:?} from server {:?}", buf[0], i);
-
-                // Write the data back
-                println!("About to TcpStream::connect on the server {:?}", i);
-                let mut stream = TcpStream::connect(addr2s[(buf[0]-1) as usize].clone()).await.unwrap();
-                println!("About to write from the server {:?}", i);
-                // TODO write back both buf AND the server number, then assert the set is the right size (outside of the check_random)
-                if let Err(e) = stream.write_all(&buf[0..n]).await {
-                    eprintln!("failed to write to socket; err = {:?}", e);
-                    return;
+                    println!("Finished write from the server {:?}", i);
                 }
-                println!("Finished write from the server {:?}", i);
-            }
-        }, Some(format!("server {:?}", i)));
+            },
+            Some(format!("server {:?}", i)),
+        );
         servers.push(server);
     }
 

@@ -3,16 +3,31 @@
 pub mod fs;
 pub mod io;
 pub mod net;
+pub mod runtime;
+pub mod sync;
 pub mod task;
 pub mod time;
-pub mod sync;
-pub mod runtime;
 
-// TODO probably don't want this
-pub use tokio::try_join;
-pub use tokio::select;
+mod pin;
+mod join;
+
+/// TODO
+pub mod macros {
+    /// TODO
+    pub mod support {
+        pub use std::pin::Pin as Pin;
+        pub use std::task::Poll as Poll;
+    }
+}
+
+
+// NOTE: Need this for tokio tests to also compile
 pub use tokio::test;
-pub use tokio::macros;
-pub use tokio::pin;
 
-pub use crate::asynch::spawn as spawn;
+// NOTE/TODO: This will not actually be able to let shuttle schedule interleavings
+pub use tokio::select;
+
+pub use crate::asynch::spawn;
+pub use crate::task_local;
+pub use crate::pin;
+pub use crate::try_join;

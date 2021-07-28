@@ -54,7 +54,10 @@ impl TcpListener {
             Poll::Pending => Poll::Pending,
             // TODO actually use e
             // Poll::Ready(Err(e)) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "Channel cancelled"))),
-            Poll::Ready(None) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "Channel received unexpected end of file"))),
+            Poll::Ready(None) => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Channel received unexpected end of file",
+            ))),
             Poll::Ready(Some(pair)) => Poll::Ready(Ok(pair)),
         }
     }

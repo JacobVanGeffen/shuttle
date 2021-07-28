@@ -3,11 +3,11 @@
 use crate::runtime::execution::ExecutionState;
 use futures::future::Future;
 use rand::Rng;
-use std::task::{Poll, Context};
 use std::pin::Pin;
+use std::task::{Context, Poll};
 
 // NOTE: There doesn't seem to be any async in here, so this is fine
-pub use tokio::time::{Instant, Duration};
+pub use tokio::time::{Duration, Instant};
 
 /// Mock of tokio's Sleep, implemented as a one-time yield
 #[derive(Debug)]
@@ -46,11 +46,12 @@ pub fn sleep(_dur: Duration) -> Sleep {
 #[derive(Debug)]
 pub struct Timeout<T> {
     value: Pin<Box<T>>,
+    counter: usize,
 }
 
 impl<T> Future for Timeout<T>
 where
-    T: Future
+    T: Future,
 {
     type Output = Result<T::Output, ()>;
 
@@ -63,12 +64,14 @@ where
             return Poll::Ready(Ok(v));
         }
 
-        // Now check the timer, with shuttle randomness
+        // Now check the countdown timer, with shuttle randomness
         // TODO what should the probability be? Maybe it could increase every time poll is called or smth. For now, just make it low.
         // TODO another solution: When Timeout is created, rand gen a number of polls that are allowed to get called
-        if crate::rand::thread_rng().gen_bool(0.1) {
+        // TODO 
+        if self.counter == 0 {
             Poll::Ready(Err(()))
         } else {
+            (*self).counter = self.counter - 1;
             Poll::Pending
         }
     }
@@ -77,7 +80,7 @@ where
 /// Mock of tokio's timeout, which randomly returns Pending or Ready(Err) each time it is polled and the inner future has not completed
 pub fn timeout_at<T>(_: Instant, future: T) -> Timeout<T>
 where
-    T: Future
+    T: Future,
 {
     timeout(Duration::new(0, 0), future)
 }
@@ -85,7 +88,12 @@ where
 /// Mock of tokio's timeout, which randomly returns Pending or Ready(Err) each time it is polled and the inner future has not completed
 pub fn timeout<T>(_: Duration, future: T) -> Timeout<T>
 where
-    T: Future
+    T: Future,
 {
-    Timeout { value: Box::pin(future) }
+    Timeout {
+        value: Box::pin(future),
+        // Randomly define the number of ticks the timeout should take
+        // TODO what should the high be?
+        counter: crate::rand::thread_rng().gen_range(0, 10000),
+    }
 }

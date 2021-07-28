@@ -1,4 +1,4 @@
-use futures::{future::FutureExt, join, pin_mut, select};
+use futures::{future::FutureExt, join, pin_mut, select, try_join};
 use shuttle::{asynch, check_dfs};
 use std::{
     cell::RefCell,
@@ -112,5 +112,26 @@ fn timer_join() {
             assert_eq!(v1 + v2 + v3, 60);
         },
         None,
+    );
+}
+
+async fn f(e: bool) -> Result<(), ()>{
+    println!("f({:?})", e);
+    if e {
+        Err(())
+    } else {
+        Ok(())
+    }
+}
+
+#[test]
+fn test_try_join() {
+    check_dfs(
+        || {
+            let f2 = f(true);
+            let f1 = f(false);
+            let res = asynch::block_on(async {try_join!(f1, f2)});
+            assert!(res.is_err());
+        }, None,
     );
 }

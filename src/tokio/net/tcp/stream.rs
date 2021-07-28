@@ -65,16 +65,25 @@ impl TcpStream {
         })
     }
 
-    fn new(addr: SocketAddr, peer: SocketAddr, sender: UnboundedSender<u8>, receiver: UnboundedReceiver<u8>) -> TcpStream {
-        let inner = Mutex::new(Inner { sender, receiver, written_before_yield: None});
-        TcpStream { addr, peer, inner}
+    fn new(
+        addr: SocketAddr,
+        peer: SocketAddr,
+        sender: UnboundedSender<u8>,
+        receiver: UnboundedReceiver<u8>,
+    ) -> TcpStream {
+        let inner = Mutex::new(Inner {
+            sender,
+            receiver,
+            written_before_yield: None,
+        });
+        TcpStream { addr, peer, inner }
     }
 
     fn new_socket_addr<F>(used: F, ip: IpAddr) -> SocketAddr
     where
         F: Fn(&SocketAddr) -> bool,
     {
-        PORT_COUNTER.with(|state|{
+        PORT_COUNTER.with(|state| {
             let mut state = state.lock().unwrap();
             let mut port = match state.get(&ip) {
                 Some(p) => *p,
@@ -95,7 +104,7 @@ impl TcpStream {
     }
 
     /// Sets the behavior of the stream after being closed
-    pub fn set_linger(&self, _: Option<Duration>) -> io::Result<()>{
+    pub fn set_linger(&self, _: Option<Duration>) -> io::Result<()> {
         // TODO in reality, this should do something b/c this will change the behavior
         // .    of the stream after the write portion closes
         // Don't do anything because we don't model time
@@ -106,18 +115,19 @@ impl TcpStream {
 
 impl AsyncRead for TcpStream {
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
-        let mut inner =  self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().unwrap();
         let receiver = &mut inner.receiver;
         let mut written = false;
         loop {
             match receiver.poll_next_unpin(cx) {
                 // TODO might want to assert that the buffer is not full on the first two branches
-                Poll::Pending => 
+                Poll::Pending => {
                     if !written {
                         return Poll::Pending;
                     } else {
                         return Poll::Ready(Ok(()));
-                    },
+                    }
+                }
                 Poll::Ready(Some(x)) => {
                     written = true;
                     buf.put_slice(&[x; 1]);
@@ -127,7 +137,7 @@ impl AsyncRead for TcpStream {
                 }
                 Poll::Ready(None) => {
                     return Poll::Ready(Ok(()));
-                },
+                }
             }
         }
     }
@@ -147,12 +157,13 @@ impl AsyncWrite for TcpStream {
         for i in buf {
             let res = sender.poll_ready_unpin(cx);
             match res {
-                Poll::Pending =>
+                Poll::Pending => {
                     if written.is_none() {
                         return Poll::Pending;
                     } else {
                         return Poll::Ready(Ok(written.unwrap()));
-                    },
+                    }
+                }
                 Poll::Ready(Ok(_)) => {
                     let res = sender.start_send(*i);
                     if res.is_err() {
@@ -166,12 +177,13 @@ impl AsyncWrite for TcpStream {
                     cx.waker().wake_by_ref();
                     ExecutionState::request_yield();
                     return Poll::Pending;
-                },
-                Poll::Ready(Err(_e)) =>
+                }
+                Poll::Ready(Err(_e)) => {
                     return Poll::Ready(Err(io::Error::new(
                         io::ErrorKind::Other,
                         "Sending over the data channel failed",
-                    ))),
+                    )))
+                }
             }
         }
         (*inner).written_before_yield = None;
