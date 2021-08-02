@@ -1,8 +1,29 @@
 use shuttle::sync::Mutex;
 use shuttle::{asynch, check_dfs, check_random, scheduler::PctScheduler, thread, Runner};
+//use std::ops::Add;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use test_env_log::test;
+
+/*
+#[test]
+fn drop_shuttle_future() {
+    let orderings_orig = Arc::new(std::sync::Mutex::new(0));
+    let orderings = orderings_orig.clone();
+    let async_accesses_orig = Arc::new(std::sync::Mutex::new(0));
+    let async_access = async_accesses_orig.clone();
+    check_dfs(
+        move || {
+            orderings.lock().unwrap().add(1);
+            asynch::spawn(async move {
+                async_access.lock().unwrap().add(1);
+            });
+        },
+        None,
+    );
+    assert!(orderings_orig.lock().unwrap().eq(&2))
+}
+*/
 
 async fn add(a: u32, b: u32) -> u32 {
     a + b
@@ -13,7 +34,7 @@ fn async_fncall() {
     check_dfs(
         move || {
             let sum = add(3, 5);
-            asynch::spawn(async move {
+            asynch::block_on(async move {
                 let r = sum.await;
                 assert_eq!(r, 8u32);
             });
@@ -31,6 +52,7 @@ fn async_with_join() {
 
                 asynch::spawn(async move {
                     assert_eq!(join.await.unwrap(), 42u32);
+                    println!("Passed the assertion");
                 });
             });
         },

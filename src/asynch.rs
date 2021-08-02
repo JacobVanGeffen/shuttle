@@ -31,7 +31,11 @@ where
     let result = std::sync::Arc::new(std::sync::Mutex::new(None));
     let stack_size = ExecutionState::with(|s| s.config.stack_size);
     let task_id = ExecutionState::spawn_future(Wrapper::new(fut, std::sync::Arc::clone(&result)), stack_size, name);
-    // TODO I think we need to yield here to give the spawned task a chance to execute before the spawner continues
+
+    println!("Yielding on spawning: {:?}", task_id);
+    crate::thread::yield_now();
+    println!("Done yielding on spawning: {:?}", task_id);
+
     JoinHandle { task_id, result }
 }
 
@@ -61,6 +65,21 @@ pub enum JoinError {
 impl ToString for JoinError {
     fn to_string(&self) -> String {
         "Task cancelled".to_string()
+    }
+}
+
+impl<T> Drop for JoinHandle<T> {
+    fn drop(&mut self) {
+        ExecutionState::with(|state| {
+            if let Some(_) = state.try_get(self.task_id) {
+                println!("Task ID: {:?}", self.task_id);
+                let task = state.get_mut(self.task_id);
+                if !task.finished() {
+                    task.finish();
+                }
+                task.take_waiter();
+            }
+        })
     }
 }
 

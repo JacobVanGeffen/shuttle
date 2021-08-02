@@ -16,7 +16,7 @@ const NUM_MESSAGES: u64 = 3;
 // How many iterations to run each test to try to see all executions
 const ITERATIONS: usize = 500;
 
-#[test]
+//#[test]
 fn james_demo() {
     let outcomes_orig = Arc::new(Mutex::new(HashMap::new()));
     let outcomes = outcomes_orig.clone();
@@ -84,7 +84,7 @@ fn james_demo() {
     // assert_eq!(outcomes_orig.lock().unwrap().len(), 6);
 }
 
-#[test]
+//#[test]
 fn echo_server() {
     check_random(
         // Task 0
@@ -160,7 +160,7 @@ fn echo_server() {
     );
 }
 
-#[test]
+//#[test]
 fn tokio_files() {
     use tokio::fs::File;
     use tokio::io::AsyncWriteExt;
@@ -193,7 +193,7 @@ fn tokio_files() {
     );
 }
 
-#[test]
+//#[test]
 fn normal_files() {
     use std::fs::File;
     check_random(
@@ -213,7 +213,7 @@ fn normal_files() {
     );
 }
 
-#[test]
+//#[test]
 fn send_three_bytes() {
     check_random(
         move || {
@@ -266,7 +266,7 @@ fn send_three_bytes() {
     );
 }
 
-#[test]
+//#[test]
 fn one_way_server() {
     check_random(
         move || {
@@ -324,7 +324,7 @@ fn one_way_server() {
     );
 }
 
-#[test]
+//#[test]
 fn disconnect_writer() {
     check_random(
         move || {
@@ -370,7 +370,7 @@ fn disconnect_writer() {
     );
 }
 
-#[test]
+//#[test]
 fn disconnect_reader() {
     check_random(
         move || {
@@ -529,12 +529,12 @@ fn triple_echo_closure() {
     // let _ = tokio_utils::run_tokio_server_with_runtime(rt, server);
 }
 
-#[test]
+//#[test]
 fn triple_echo() {
     check_random(triple_echo_closure, 1);
 }
 
-#[test]
+//#[test]
 fn triple_echo_replay() {
     replay(
         triple_echo_closure,

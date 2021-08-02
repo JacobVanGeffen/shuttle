@@ -67,7 +67,7 @@ where
         // Now check the countdown timer, with shuttle randomness
         // TODO what should the probability be? Maybe it could increase every time poll is called or smth. For now, just make it low.
         // TODO another solution: When Timeout is created, rand gen a number of polls that are allowed to get called
-        // TODO 
+        // TODO
         if self.counter == 0 {
             Poll::Ready(Err(()))
         } else {

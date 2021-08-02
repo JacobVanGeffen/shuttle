@@ -12,7 +12,7 @@ use std::cell::RefCell;
 use std::panic;
 use std::rc::Rc;
 use tracing::span::Entered;
-use tracing::{span, trace, Level, Span};
+use tracing::{/*span,*/ trace, /*Level,*/ Span};
 
 // We use this scoped TLS to smuggle the ExecutionState, which is not 'static, across tasks that
 // need access to it (to spawn new tasks, interrogate task status, etc).
@@ -182,8 +182,8 @@ pub(crate) struct ExecutionState {
 
     // For `tracing`, we track the current task's Span here and manage it in `schedule_next_task`.
     // Drop order is significant here; see the unsafe code in `schedule_next_task` for why.
-    current_span_entered: Option<Entered<'static>>,
-    current_span: Span,
+    _current_span_entered: Option<Entered<'static>>,
+    _current_span: Span,
 
     #[cfg(debug_assertions)]
     has_cleaned_up: bool,
@@ -221,8 +221,8 @@ impl ExecutionState {
             context_switches: 0,
             scheduler,
             current_schedule: initial_schedule,
-            current_span_entered: None,
-            current_span: Span::none(),
+            _current_span_entered: None,
+            _current_span: Span::none(),
             #[cfg(debug_assertions)]
             has_cleaned_up: false,
         }
@@ -463,7 +463,6 @@ impl ExecutionState {
     /// scheduler is being invoked from within a running task. If scheduling fails, returns an Err
     /// with a String describing the failure.
     fn schedule(&mut self) -> Result<(), String> {
-        println!("Next task: {:?}", self.next_task);
         // Don't schedule twice. If `maybe_yield` ran the scheduler, we don't want to run it
         // again at the top of `step`.
         if self.next_task != ScheduledTask::None {
@@ -526,17 +525,20 @@ impl ExecutionState {
         // `self.current_span_entered` directly. Instead, we transmute `Entered<'a>` into
         // `Entered<'static>`. We make sure that it can never outlive 'a by dropping
         // `self.current_span_entered` before dropping the `self.current_span` it points to.
+        // TODO uncomment at some point
+        /*
         self.current_span_entered.take();
         if let ScheduledTask::Some(tid) = self.current_task {
             self.current_span = span!(Level::INFO, "step", i = self.current_schedule.len() - 1, task = tid.0);
             self.current_span_entered = Some(unsafe { extend_span_entered_lt(self.current_span.enter()) });
         }
+        */
     }
 }
 
 // Safety: see the use in `advance_to_next_task` above. We lift this out of that function so we can
 // give fixed concrete types for the transmute.
-unsafe fn extend_span_entered_lt<'a>(entered: Entered<'a>) -> Entered<'static> {
+unsafe fn _extend_span_entered_lt<'a>(entered: Entered<'a>) -> Entered<'static> {
     std::mem::transmute(entered)
 }
 

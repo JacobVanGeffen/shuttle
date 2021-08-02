@@ -8,18 +8,17 @@ pub mod sync;
 pub mod task;
 pub mod time;
 
-mod pin;
 mod join;
+mod pin;
 
 /// TODO
 pub mod macros {
     /// TODO
     pub mod support {
-        pub use std::pin::Pin as Pin;
-        pub use std::task::Poll as Poll;
+        pub use std::pin::Pin;
+        pub use std::task::Poll;
     }
 }
-
 
 // NOTE: Need this for tokio tests to also compile
 pub use tokio::test;
@@ -28,6 +27,6 @@ pub use tokio::test;
 pub use tokio::select;
 
 pub use crate::asynch::spawn;
-pub use crate::task_local;
 pub use crate::pin;
+pub use crate::task_local;
 pub use crate::try_join;

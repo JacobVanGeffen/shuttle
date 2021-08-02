@@ -115,7 +115,7 @@ fn timer_join() {
     );
 }
 
-async fn f(e: bool) -> Result<(), ()>{
+async fn f(e: bool) -> Result<(), ()> {
     println!("f({:?})", e);
     if e {
         Err(())
@@ -130,8 +130,9 @@ fn test_try_join() {
         || {
             let f2 = f(true);
             let f1 = f(false);
-            let res = asynch::block_on(async {try_join!(f1, f2)});
+            let res = asynch::block_on(async { try_join!(f1, f2) });
             assert!(res.is_err());
-        }, None,
+        },
+        None,
     );
 }

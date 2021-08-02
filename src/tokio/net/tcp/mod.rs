@@ -1,9 +1,10 @@
 //! Shuttle's implementation of [`tokio::net`].
 
+// TODO: OwnedReadHalf, OwnedWriteHalf
+
 use futures::channel::mpsc::UnboundedSender;
-use std::net::{IpAddr, SocketAddr};
-// use std::cell::RefCell;
 use std::collections::HashMap;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Mutex;
 
 thread_local! {
@@ -18,6 +19,10 @@ pub fn reset_connect_table() {
         let mut state = state.lock().unwrap();
         *state = HashMap::new();
     });
+    PORT_COUNTER.with(|state| {
+        let mut state = state.lock().unwrap();
+        *state = HashMap::new();
+    });
 }
 
 mod listener;
@@ -26,4 +31,6 @@ mod registration;
 mod stream;
 
 pub use listener::TcpListener;
+pub use stream::OwnedReadHalf;
+pub use stream::OwnedWriteHalf;
 pub use stream::TcpStream;

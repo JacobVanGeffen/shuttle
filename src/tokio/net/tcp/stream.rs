@@ -1,6 +1,6 @@
-use crate::runtime::execution::ExecutionState;
-
 use super::{SocketAddr, CONNECT_TABLE, PORT_COUNTER};
+use crate::runtime::execution::ExecutionState;
+use crate::sync::{Arc, Mutex};
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::future::poll_fn;
 use futures::SinkExt;
@@ -9,7 +9,6 @@ use std::fmt;
 use std::io;
 use std::net::IpAddr;
 use std::pin::Pin;
-use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
 use std::time::Duration;
@@ -20,9 +19,23 @@ use tokio::io::{AsyncRead, AsyncWrite};
 pub struct TcpStream {
     addr: SocketAddr,
     peer: SocketAddr,
-    inner: Mutex<Inner>,
+    inner: Arc<Mutex<Inner>>,
 }
 
+// TODO read/write half should also have a mutex to inner
+/// TODO Document
+#[derive(Debug)]
+pub struct OwnedReadHalf {
+    inner: Arc<Mutex<Inner>>,
+}
+
+/// TODO Document
+#[derive(Debug)]
+pub struct OwnedWriteHalf {
+    inner: Arc<Mutex<Inner>>,
+}
+
+#[derive(Debug)]
 struct Inner {
     sender: UnboundedSender<u8>,
     receiver: UnboundedReceiver<u8>,
@@ -76,7 +89,11 @@ impl TcpStream {
             receiver,
             written_before_yield: None,
         });
-        TcpStream { addr, peer, inner }
+        TcpStream {
+            addr,
+            peer,
+            inner: Arc::new(inner),
+        }
     }
 
     fn new_socket_addr<F>(used: F, ip: IpAddr) -> SocketAddr
@@ -97,10 +114,16 @@ impl TcpStream {
         })
     }
 
-    // look at futures::io::ReadHalf?
     /// TODO Document
-    pub fn split<'a>(&'a mut self) -> (tokio::net::tcp::ReadHalf<'a>, tokio::net::tcp::WriteHalf<'a>) {
-        unimplemented!()
+    pub fn into_split(self) -> (OwnedReadHalf, OwnedWriteHalf) {
+        (
+            OwnedReadHalf {
+                inner: self.inner.clone(),
+            },
+            OwnedWriteHalf {
+                inner: self.inner.clone(),
+            },
+        )
     }
 
     /// Sets the behavior of the stream after being closed
@@ -109,14 +132,69 @@ impl TcpStream {
         // .    of the stream after the write portion closes
         // Don't do anything because we don't model time
         // TODO Should this use shuttle random to return Err?
+        // unimplemented!()
         Ok(())
+    }
+
+    /// Get peer SocketAddr
+    pub fn peer_addr(&self) -> SocketAddr {
+        self.peer
     }
 }
 
 impl AsyncRead for TcpStream {
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
         let mut inner = self.inner.lock().unwrap();
-        let receiver = &mut inner.receiver;
+        inner.poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for TcpStream {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.poll_write(cx, buf)
+    }
+
+    #[inline]
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        // tcp flush is a no-op
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        // TODO
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl AsyncRead for OwnedReadHalf {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for OwnedWriteHalf {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.poll_write(cx, buf)
+    }
+
+    #[inline]
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        // tcp flush is a no-op
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        // TODO
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl Inner {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+        let receiver = &mut self.receiver;
         let mut written = false;
         loop {
             match receiver.poll_next_unpin(cx) {
@@ -141,18 +219,15 @@ impl AsyncRead for TcpStream {
             }
         }
     }
-}
 
-impl AsyncWrite for TcpStream {
-    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
-        let mut inner = self.inner.lock().unwrap();
-        let written = inner.written_before_yield;
+    fn poll_write(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        let written = self.written_before_yield;
         let buf = if written.is_some() {
             &buf[written.unwrap()..]
         } else {
             buf
         };
-        let sender = &mut inner.sender;
+        let sender = &mut self.sender;
         // TODO don't make this a loop b/c it only ever does one or zero iterations
         for i in buf {
             let res = sender.poll_ready_unpin(cx);
@@ -169,7 +244,7 @@ impl AsyncWrite for TcpStream {
                     if res.is_err() {
                         return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "SendError during start_send")));
                     }
-                    (*inner).written_before_yield = match written {
+                    self.written_before_yield = match written {
                         None => Some(1),
                         Some(x) => Some(x + 1),
                     };
@@ -186,19 +261,8 @@ impl AsyncWrite for TcpStream {
                 }
             }
         }
-        (*inner).written_before_yield = None;
+        self.written_before_yield = None;
         Poll::Ready(Ok(written.unwrap()))
-    }
-
-    #[inline]
-    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
-        // tcp flush is a no-op
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
-        // TODO
-        Poll::Ready(Ok(()))
     }
 }
 
