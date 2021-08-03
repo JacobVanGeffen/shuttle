@@ -39,7 +39,7 @@ fn yield_spin_loop(use_yield: bool) {
     runner.run(move || {
         let count = Arc::new(AtomicUsize::new(0usize));
 
-        let _thds = (0..NUM_TASKS)
+        let tasks = (0..NUM_TASKS)
             .map(|_| {
                 let count = count.clone();
                 asynch::spawn(async move {
@@ -56,6 +56,10 @@ fn yield_spin_loop(use_yield: bool) {
                     let yielder = UnfairYieldNow { yielded: false };
                     yielder.await;
                 }
+            }
+
+            for t in tasks {
+                let _ = t.await;
             }
         })
     });

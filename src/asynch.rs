@@ -32,9 +32,7 @@ where
     let stack_size = ExecutionState::with(|s| s.config.stack_size);
     let task_id = ExecutionState::spawn_future(Wrapper::new(fut, std::sync::Arc::clone(&result)), stack_size, name);
 
-    println!("Yielding on spawning: {:?}", task_id);
-    crate::thread::yield_now();
-    println!("Done yielding on spawning: {:?}", task_id);
+    thread::switch();
 
     JoinHandle { task_id, result }
 }
@@ -72,7 +70,7 @@ impl<T> Drop for JoinHandle<T> {
     fn drop(&mut self) {
         ExecutionState::with(|state| {
             if let Some(_) = state.try_get(self.task_id) {
-                println!("Task ID: {:?}", self.task_id);
+                //println!("Dropping {:?}", self.task_id);
                 let task = state.get_mut(self.task_id);
                 if !task.finished() {
                     task.finish();
@@ -144,7 +142,11 @@ where
                 // Unblock our waiter if we have one
                 ExecutionState::with(|state| {
                     if let Some(waiter) = state.current_mut().take_waiter() {
-                        state.get_mut(waiter).unblock();
+                        // NOTE: This could happen if the waiter is dropped first
+                        // There should be a better solution to this...
+                        if !state.get_mut(waiter).finished() {
+                            state.get_mut(waiter).unblock();
+                        }
                     }
                 });
 
@@ -163,7 +165,8 @@ where
 {
     let handle = spawn(future);
 
-    thread::switch(); // Required to allow Execution to spawn the future
+    // A switch here is no longer necessary, since spawn now calls thread::switch() at the end
+    // thread::switch();
 
     ExecutionState::with(|state| {
         let me = state.current().id();
