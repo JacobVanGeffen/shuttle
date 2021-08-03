@@ -69,8 +69,7 @@ impl ToString for JoinError {
 impl<T> Drop for JoinHandle<T> {
     fn drop(&mut self) {
         ExecutionState::with(|state| {
-            if let Some(_) = state.try_get(self.task_id) {
-                //println!("Dropping {:?}", self.task_id);
+            if !state.has_cleaned_up() {
                 let task = state.get_mut(self.task_id);
                 if !task.finished() {
                     task.finish();

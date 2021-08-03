@@ -1,29 +1,32 @@
 use shuttle::sync::Mutex;
 use shuttle::{asynch, check_dfs, check_random, scheduler::PctScheduler, thread, Runner};
-//use std::ops::Add;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use test_env_log::test;
 
-/*
 #[test]
 fn drop_shuttle_future() {
-    let orderings_orig = Arc::new(std::sync::Mutex::new(0));
+    let orderings_orig = Arc::new(std::sync::Mutex::new(0usize));
+    let async_accesses_orig = Arc::new(std::sync::Mutex::new(0usize));
+    let async_accesses_clone = async_accesses_orig.clone();
     let orderings = orderings_orig.clone();
-    let async_accesses_orig = Arc::new(std::sync::Mutex::new(0));
-    let async_access = async_accesses_orig.clone();
+
     check_dfs(
         move || {
-            orderings.lock().unwrap().add(1);
+            let async_access = async_accesses_clone.clone();
+            let mut orderings = orderings.lock().unwrap();
+            *orderings += 1;
             asynch::spawn(async move {
-                async_access.lock().unwrap().add(1);
+                let mut async_access = async_access.lock().unwrap();
+                *async_access += 1;
             });
         },
         None,
     );
-    assert!(orderings_orig.lock().unwrap().eq(&2))
+
+    assert_eq!(2, *orderings_orig.lock().unwrap());
+    assert_eq!(1, *async_accesses_orig.lock().unwrap());
 }
-*/
 
 async fn add(a: u32, b: u32) -> u32 {
     a + b

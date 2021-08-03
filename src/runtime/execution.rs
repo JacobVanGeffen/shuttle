@@ -185,7 +185,6 @@ pub(crate) struct ExecutionState {
     _current_span_entered: Option<Entered<'static>>,
     _current_span: Span,
 
-    #[cfg(debug_assertions)]
     has_cleaned_up: bool,
 }
 
@@ -307,6 +306,7 @@ impl ExecutionState {
     /// Prepare this ExecutionState to be dropped. Call this before dropping so that the tasks have
     /// a chance to run their drop handlers while `EXECUTION_STATE` is still in scope.
     fn cleanup() {
+        // TODO this is a bad assumption, since drop handlers can call wake
         // A slightly delicate dance here: we need to drop the tasks from outside of `Self::with`,
         // because a task's Drop impl might want to call back into `ExecutionState` (to check
         // `should_stop()`). So we pull the tasks out of the `ExecutionState`, leaving it in an
@@ -315,6 +315,9 @@ impl ExecutionState {
             assert!(state.current_task == ScheduledTask::Stopped || state.current_task == ScheduledTask::Finished);
             (std::mem::replace(&mut state.tasks, SmallVec::new()), state.current_task)
         });
+
+        // NOTE: This needs to be set before tasks are dropped
+        Self::with(|state| state.has_cleaned_up = true);
 
         for task in tasks.drain(..) {
             assert!(
@@ -325,9 +328,12 @@ impl ExecutionState {
                 .map_err(|_| ())
                 .expect("couldn't cleanup a future");
         }
+    }
 
-        #[cfg(debug_assertions)]
-        Self::with(|state| state.has_cleaned_up = true);
+    // TODO
+    #[allow(unused)]
+    pub(crate) fn has_cleaned_up(&self) -> bool {
+        self.has_cleaned_up
     }
 
     /// Invoke the scheduler to decide which task to schedule next. Returns true if the chosen task

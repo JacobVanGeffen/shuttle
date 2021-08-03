@@ -12,7 +12,7 @@ use std::collections::HashSet;
 use test_env_log::test;
 
 #[test]
-fn oneshot_once() {
+fn oneshot_once_blocking() {
     check_dfs(
         || {
             let (tx, rx) = oneshot::channel();
@@ -33,6 +33,26 @@ fn oneshot_once() {
     )
 }
 
+#[test]
+fn oneshot_once() {
+    check_dfs(
+        || {
+            let (tx, rx) = oneshot::channel();
+
+            asynch::spawn(async move {
+                tx.send(42u32).unwrap();
+            });
+
+            asynch::spawn(async {
+                let x = rx.await.unwrap();
+                assert_eq!(x, 42u32);
+            });
+        },
+        None,
+    )
+}
+
+// TODO change these back to the original, since changes should only add new behaviors
 #[test]
 fn oneshot_ping_pong() {
     check_dfs(
