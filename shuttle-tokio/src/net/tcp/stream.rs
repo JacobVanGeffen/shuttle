@@ -1,6 +1,6 @@
 use super::{SocketAddr, CONNECT_TABLE, PORT_COUNTER};
-use crate::runtime::execution::ExecutionState;
-use crate::sync::{Arc, Mutex};
+use shuttle::thread;
+use shuttle::sync::{Arc, Mutex};
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::future::poll_fn;
 use futures::SinkExt;
@@ -250,7 +250,7 @@ impl Inner {
                     };
                     // Perform a yield
                     cx.waker().wake_by_ref();
-                    ExecutionState::request_yield();
+                    thread::request_yield();
                     return Poll::Pending;
                 }
                 Poll::Ready(Err(_e)) => {

@@ -1,8 +1,9 @@
 //! Shuttle's implementation of [`tokio::time`].
 
-use crate::runtime::execution::ExecutionState;
-use futures::future::Future;
 use rand::Rng;
+use shuttle::rand::thread_rng;
+use shuttle::thread;
+use futures::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -23,7 +24,7 @@ impl Future for Sleep {
             Poll::Ready(())
         } else {
             cx.waker().wake_by_ref();
-            ExecutionState::request_yield();
+            thread::request_yield();
             self.has_yielded = true;
             Poll::Pending
         }
@@ -94,6 +95,6 @@ where
         value: Box::pin(future),
         // Randomly define the number of ticks the timeout should take
         // TODO what should the high be?
-        counter: crate::rand::thread_rng().gen_range(0, 10000),
+        counter: thread_rng().gen_range(0, 10000),
     }
 }

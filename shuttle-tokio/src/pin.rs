@@ -1,7 +1,7 @@
 /// Pins onto the stack
 // Copied from tokio
 #[macro_export]
-macro_rules! pin {
+macro_rules! my_pin {
     ($($x:ident),*) => { $(
         // Move the value to ensure that it is owned
         let mut $x = $x;

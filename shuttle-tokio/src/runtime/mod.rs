@@ -2,6 +2,7 @@
 
 // pub use tokio::runtime::*;
 
+use shuttle::asynch;
 use futures::future::Future;
 use std::io;
 
@@ -46,7 +47,7 @@ impl Runtime {
         F: Future<Output = T> + Send + 'static,
         T: Send + 'static,
     {
-        crate::asynch::block_on(async move { f.await })
+        asynch::block_on(async move { f.await })
     }
 
     /// Returns self

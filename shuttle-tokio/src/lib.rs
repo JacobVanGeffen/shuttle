@@ -26,7 +26,7 @@ pub use tokio::test;
 // NOTE/TODO: This will not actually be able to let shuttle schedule interleavings
 pub use tokio::select;
 
-pub use crate::asynch::spawn;
-pub use crate::pin;
-pub use crate::task_local;
-pub use crate::try_join;
+pub use shuttle::asynch::spawn;
+pub use shuttle::task_local;
+pub use crate::my_pin as pin;
+pub use crate::my_try_join as try_join;

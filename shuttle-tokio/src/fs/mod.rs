@@ -10,6 +10,9 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::ReadBuf;
 
+#[cfg(test)]
+use shuttle::{asynch, check_dfs};
+
 /// TODO
 pub async fn create_dir_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
     // println!("Performed create_dir_all");
@@ -98,7 +101,7 @@ impl File {
     }
 }
 
-impl crate::tokio::io::AsyncWrite for File {
+impl tokio::io::AsyncWrite for File {
     fn poll_write(mut self: Pin<&mut Self>, _: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize, io::Error>> {
         // println!("Performed poll_write");
         Poll::Ready(self.inner.write(buf))
@@ -116,7 +119,7 @@ impl crate::tokio::io::AsyncWrite for File {
     }
 }
 
-impl crate::tokio::io::AsyncRead for File {
+impl tokio::io::AsyncRead for File {
     fn poll_read(mut self: Pin<&mut Self>, _: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<Result<(), io::Error>> {
         // println!("Performed poll_read");
         let read_buf = buf.initialize_unfilled();
@@ -128,7 +131,7 @@ impl crate::tokio::io::AsyncRead for File {
     }
 }
 
-impl crate::tokio::io::AsyncSeek for File {
+impl tokio::io::AsyncSeek for File {
     fn start_seek(self: Pin<&mut Self>, mut _pos: SeekFrom) -> Result<(), io::Error> {
         // println!("Performed start_seek");
         Ok(())
@@ -143,9 +146,9 @@ impl crate::tokio::io::AsyncSeek for File {
 #[test]
 fn test_file_read() {
     use tokio::io::AsyncReadExt;
-    crate::check_dfs(
+    check_dfs(
         || {
-            crate::asynch::block_on(async move {
+            asynch::block_on(async move {
                 let mut file = File::open("test-file.txt").await.unwrap();
                 let mut buf = Vec::new();
                 let n_bytes = file.read_to_end(&mut buf).await.unwrap();

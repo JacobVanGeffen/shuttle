@@ -2,13 +2,14 @@
 
 // pub use tokio::sync::*;
 
-use crate::sync::MutexGuard;
+use shuttle::sync::MutexGuard;
 use std::sync::LockResult;
 
 /// A mutex, the same as [`std::sync::Mutex`].
 #[derive(Debug)]
 pub struct Mutex<T> {
-    inner: crate::sync::Mutex<T>,
+    inner: shuttle::sync::Mutex<T>,
+    //_p: PhantomData<T>,
 }
 
 // TODO tests (see tokio's tests)
@@ -16,7 +17,7 @@ impl<T> Mutex<T> {
     /// Creates a new mutex in an unlocked state ready for use.
     pub fn new(value: T) -> Self {
         Self {
-            inner: crate::sync::Mutex::new(value),
+            inner: shuttle::sync::Mutex::new(value),
         }
     }
 

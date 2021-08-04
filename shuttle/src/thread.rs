@@ -145,6 +145,12 @@ impl<T> JoinHandle<T> {
     }
 }
 
+/// Tell the scheduler that the next context switch is an explicit yield requested by the
+/// current task. Some schedulers use this as a hint to influence scheduling.
+pub fn request_yield() {
+    ExecutionState::request_yield();
+}
+
 /// Cooperatively gives up a timeslice to the Shuttle scheduler.
 ///
 /// Some Shuttle schedulers use this as a hint to deprioritize the current thread in order for other

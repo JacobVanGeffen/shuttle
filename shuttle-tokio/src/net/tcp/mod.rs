@@ -26,8 +26,6 @@ pub fn reset_connect_table() {
 }
 
 mod listener;
-#[allow(unused)]
-mod registration;
 mod stream;
 
 pub use listener::TcpListener;

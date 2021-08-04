@@ -2,7 +2,7 @@
 // TODO allow shuttle to handle the polling of the futures
 // Copied from Tokio
 #[macro_export]
-macro_rules! try_join {
+macro_rules! my_try_join {
     (@ {
         // One `_` for each branch in the `try_join!` macro. This is not used once
         // normalization is complete.
