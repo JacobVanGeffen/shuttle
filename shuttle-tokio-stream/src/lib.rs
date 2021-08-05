@@ -1,4 +1,25 @@
-pub use futures::{Stream, StreamExt, TryStreamExt};
+pub use futures::Stream;
+
+use futures::stream::{Next, TryNext};
+use futures::TryStreamExt;
+
+pub trait StreamExt: Stream {
+    fn next(&mut self) -> Next<'_, Self>
+    where
+        Self: Unpin,
+    {
+        futures::StreamExt::next(self)
+    }
+
+    fn try_next<T, E>(&mut self) -> TryNext<'_, Self>
+    where
+        Self: Stream<Item = Result<T, E>> + Unpin,
+    {
+        TryStreamExt::try_next(self)
+    }
+}
+
+impl<T: ?Sized> StreamExt for T where T: Stream {}
 
 pub mod wrappers {
     use futures::channel::mpsc::Receiver;
