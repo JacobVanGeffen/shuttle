@@ -20,6 +20,45 @@ pub mod macros {
     }
 }
 
+// TODO move this to own file
+/// TODO
+pub mod signal {
+    /// TODO
+    pub mod unix {
+        use futures::future::Future;
+        use std::pin::Pin;
+        use std::task::{Poll, Context};
+
+        /// TODO
+        pub struct SignalKind {}
+        impl SignalKind {
+            pub fn interrupt() {}
+        }
+
+        /// TODO
+        pub fn signal(_: ()) -> Option<SignalFuture> {
+            Some(SignalFuture {})
+        }
+
+        /// TODO
+        pub struct SignalFuture {}
+
+        impl SignalFuture {
+            pub fn recv(self) -> Self {
+                self
+            }
+        }
+
+        impl Future for SignalFuture {
+            type Output = ();
+
+            fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+                Poll::Pending
+            }
+        }
+    }
+}
+
 // NOTE: Need this for tokio tests to also compile
 pub use tokio::test;
 

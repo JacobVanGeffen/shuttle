@@ -7,7 +7,7 @@ use super::TcpStream;
 use std::convert::TryFrom;
 use std::fmt;
 use std::io;
-use std::net::{self, SocketAddr};
+use std::net::{self, SocketAddr, ToSocketAddrs};
 use std::sync::Mutex;
 use std::task::{Context, Poll};
 
@@ -22,9 +22,9 @@ pub struct TcpListener {
 #[allow(unused)]
 impl TcpListener {
     /// TODO Document
-    pub async fn bind(addr: &str) -> io::Result<TcpListener> {
+    pub async fn bind<A: ToSocketAddrs>(addrs: A) -> io::Result<TcpListener> {
         // This should be blocking? Should I return pending first?
-        let addr = addr.parse().expect("Unable to parse socket address");
+        let addr = addrs.to_socket_addrs().unwrap().next().unwrap();
         match TcpListener::bind_addr(addr) {
             Ok(listener) => Ok(listener),
             Err(e) => Err(e),

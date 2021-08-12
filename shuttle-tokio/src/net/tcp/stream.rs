@@ -1,19 +1,19 @@
 use super::{SocketAddr, CONNECT_TABLE, PORT_COUNTER};
-use shuttle::thread;
+use shuttle::{asynch, thread};
 use shuttle::sync::{Arc, Mutex};
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
 use futures::future::poll_fn;
 use futures::SinkExt;
 use futures::StreamExt;
 use std::fmt;
-use std::io;
-use std::net::IpAddr;
+use std::io::{self, IoSlice, IoSliceMut};
+use std::net::{IpAddr, ToSocketAddrs};
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 use std::time::Duration;
-use tokio::io::ReadBuf;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncReadExt, Interest, ReadBuf};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 
 /// TODO Document
 pub struct TcpStream {
@@ -44,8 +44,44 @@ struct Inner {
 
 impl TcpStream {
     /// TODO Document
-    pub async fn connect(addr: SocketAddr) -> io::Result<TcpStream> {
-        poll_fn(|cx| TcpStream::poll_connect(addr, cx)).await
+    pub async fn connect<A: ToSocketAddrs>(addrs: A) -> io::Result<TcpStream> {
+        // NOTE: The first address should be successful
+        // TODO could loop over the addrs
+        poll_fn(|cx| TcpStream::poll_connect(addrs.to_socket_addrs().unwrap().next().unwrap(), cx)).await
+    }
+
+    // TODO actually allow these to work with poll_ready_unpin to see if stuff is ready
+    pub async fn readable(&self) -> io::Result<()> { Ok(()) }
+    pub async fn writable(&self) -> io::Result<()> { Ok(()) }
+    pub async fn ready(&self, _i: Interest) -> io::Result<()> { Ok(()) }
+    
+    pub fn try_write(&'static mut self, src: &'static [u8]) -> io::Result<usize> {
+        asynch::block_on(self.write(src))
+    }
+
+    pub fn try_write_vectored(&'static mut self, bufs: &'static [IoSlice<'static>]) -> io::Result<usize> {
+        asynch::block_on(self.write_vectored(bufs))
+    }
+
+    pub fn try_read(&'static mut self, buf: &'static mut [u8]) -> io::Result<usize> {
+        asynch::block_on(self.read(buf))
+    }
+
+    pub fn try_read_vectored(&'static mut self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
+        Ok(0)
+        // TODO
+        // asynch::block_on(self.read_vectored(bufs))
+    }
+
+    pub async fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
+        let mut total = 0;
+        for buf in bufs {
+            match self.read(buf).await {
+                Ok(n) => total += n,
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(total)
     }
 
     fn poll_connect(addr: SocketAddr, cx: &mut Context<'_>) -> Poll<io::Result<TcpStream>> {

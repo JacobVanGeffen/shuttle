@@ -22,6 +22,10 @@ pub struct MutexGuard<'a, T> {
     mutex: &'a Mutex<T>,
 }
 
+// TODO
+unsafe impl<'a, T> Send for MutexGuard<'a, T> {}
+unsafe impl<'a, T> Sync for MutexGuard<'a, T> {}
+
 #[derive(Debug)]
 struct MutexState {
     holder: Option<TaskId>,
