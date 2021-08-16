@@ -4,7 +4,7 @@ use shuttle_tokio::io::{AsyncReadExt, AsyncWriteExt, Interest};
 use shuttle_tokio::net::{TcpListener, TcpStream};
 use shuttle_tokio::try_join;
 use shuttle_tokio as tokio;
-use shuttle::{asynch, check_dfs, thread};
+use shuttle::{asynch, check_dfs, check_random, thread};
 
 use std::io;
 use std::pin::Pin;
@@ -22,6 +22,86 @@ where
     check_dfs(move || { asynch::block_on(f); }, None);
 }
 */
+
+#[test]
+fn test_pin_select() {
+    check_random(move || {
+        println!("New test");
+        let addr = "127.0.0.1:0";
+        for i in 0..40 {
+            asynch::spawn(async move {
+                println!("i: {:?}", i);
+                let listener = TcpListener::bind(&addr).await.unwrap();
+                println!("i: {:?}", i);
+                let addr = listener.local_addr().unwrap();
+                println!("Local addr: {:?}", addr);
+                println!("Got here");
+                asynch::spawn(pin_select(listener));
+                println!("i: {:?}", i);
+                println!("Got here 2");
+                asynch::spawn(async move {
+                    // TODO we want to yield on the connect and accept
+                    let mut j = 0;
+                    while let Ok(x) = TcpStream::connect(addr).await {
+                        asynch::yield_now().await;
+                        println!("Another iter, got local {:?} and peer {:?} at loop {:?}", x.local_addr(), x.peer_addr(), i);
+                        j += 1;
+                        if j > 20 {
+                            break;
+                        }
+                    }
+                });
+            });
+        }
+        println!("Made it here");
+        shuttle_tokio::net::tcp::reset_connect_table();
+    }, 1);
+    println!("Made it here three");
+}
+
+async fn other() { futures::future::poll_fn(|_| Poll::Pending).await }
+async fn a() {}
+async fn b() {}
+
+async fn pin_select(listener: TcpListener) {
+
+    loop {
+        match listener.accept().await {
+            Ok((_socket, _)) => println!("Accepted successfully"),
+            Err(err) => {
+                println!("accept error = {:?}", err);
+                return;
+            }
+        }
+        /*
+        let accept = listener.accept().fuse();
+        let other = other().fuse();
+        futures::pin_mut!(accept, other);
+        //let a = a().fuse();
+        //let b = b().fuse();
+        //futures::pin_mut!(a, b);
+        futures::select! {
+            //_ = a => {},
+            //_ = b => { return; },
+            new_connection = accept => {
+                match new_connection {
+                    Ok((_socket, _)) => {
+                        println!("Accepted successfully");
+                    },
+                    Err(err) => {
+                        println!("accept error = {:?}", err);
+                        return;
+                    }
+                }
+            },
+            _ = other => {
+                println!("Cleanly exiting stumpy server");
+                return;
+            }
+        }
+        */
+    }
+}
 
 macro_rules! check {
     ($x:expr) => {{
@@ -68,6 +148,7 @@ macro_rules! assert_ready_ok {
 // TODO: See if BA uses RNG anywhere else, this would be a problem
 
 // NOTE: These tests are from tokio net tcp tests
+/*
 #[test]
 fn test_set_linger() {
     check!(set_linger());
@@ -86,6 +167,8 @@ async fn set_linger() {
     assert_ok!(stream.set_linger(None));
     // assert!(stream.linger().unwrap().is_none());
 }
+*/
+/*
 
 #[test]
 fn test_try_read_write() {
@@ -217,6 +300,7 @@ async fn try_read_write() {
         }
     }
 }
+*/
 
 /*
 macro_rules! assert_readable_by_polling {

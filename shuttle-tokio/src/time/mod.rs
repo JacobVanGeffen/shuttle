@@ -62,6 +62,7 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // First, try polling the future
         if let Poll::Ready(v) = self.value.as_mut().poll(cx) {
+            println!("timeout finished");
             return Poll::Ready(Ok(v));
         }
 
@@ -70,8 +71,10 @@ where
         // TODO another solution: When Timeout is created, rand gen a number of polls that are allowed to get called
         // TODO
         if self.counter == 0 {
+            println!("timeout errored");
             Poll::Ready(Err(()))
         } else {
+            // TODO uncomment
             (*self).counter = self.counter - 1;
             Poll::Pending
         }
@@ -91,10 +94,11 @@ pub fn timeout<T>(_: Duration, future: T) -> Timeout<T>
 where
     T: Future,
 {
+    println!("timeout called");
     Timeout {
         value: Box::pin(future),
         // Randomly define the number of ticks the timeout should take
         // TODO what should the high be?
-        counter: thread_rng().gen_range(0, 10000),
+        counter: thread_rng().gen_range(0, 1000),
     }
 }

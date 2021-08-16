@@ -95,11 +95,11 @@ impl Execution {
                     let task_states = state
                         .tasks
                         .iter()
-                        .map(|t| (t.id, t.state))
+                        .map(|t| (t.id, t.state, t.dropped))
                         .collect::<SmallVec<[_; DEFAULT_INLINE_TASKS]>>();
-                    if task_states.iter().any(|(_, s)| *s == TaskState::Blocked) {
+                    if task_states.iter().any(|(_, s, dropped)| !dropped && *s == TaskState::Blocked) {
                         // TODO remove
-                        for (tid, ts) in task_states.clone() {
+                        for (tid, ts, _) in task_states.clone() {
                             println!(
                                 "{:?} is named {:?} and is in state {:?}",
                                 tid,
@@ -112,7 +112,7 @@ impl Execution {
                             state.current_schedule.clone(),
                         )
                     } else {
-                        debug_assert!(state.tasks.iter().all(|t| t.finished()));
+                        debug_assert!(state.tasks.iter().all(|t| t.dropped || t.finished()));
                         NextStep::Finished
                     }
                 }
@@ -321,7 +321,7 @@ impl ExecutionState {
 
         for task in tasks.drain(..) {
             assert!(
-                final_state == ScheduledTask::Stopped || task.finished(),
+                final_state == ScheduledTask::Stopped || task.finished() || task.dropped,
                 "execution finished but task is not"
             );
             Rc::try_unwrap(task.continuation)

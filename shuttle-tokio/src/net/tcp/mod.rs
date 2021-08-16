@@ -25,6 +25,24 @@ pub fn reset_connect_table() {
     });
 }
 
+fn new_socket_addr<F>(used: F, ip: IpAddr) -> SocketAddr
+where
+    F: Fn(&SocketAddr) -> bool,
+{
+    PORT_COUNTER.with(|state| {
+        let mut state = state.lock().unwrap();
+        let mut port = match state.get(&ip) {
+            Some(p) => *p,
+            None => 1u16,
+        };
+        while used(&SocketAddr::new(ip, port)) {
+            port = port + 1;
+        }
+        state.insert(ip, port + 1);
+        SocketAddr::new(ip, port)
+    })
+}
+
 mod listener;
 mod stream;
 

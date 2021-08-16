@@ -68,15 +68,12 @@ impl ToString for JoinError {
 
 impl<T> Drop for JoinHandle<T> {
     fn drop(&mut self) {
-        ExecutionState::with(|state| {
+        ExecutionState::try_with(|state| {
             if !state.has_cleaned_up() {
                 let task = state.get_mut(self.task_id);
-                if !task.finished() {
-                    task.finish();
-                }
-                task.take_waiter();
+                task.mark_drop();
             }
-        })
+        });
     }
 }
 
@@ -89,8 +86,11 @@ impl<T> Future for JoinHandle<T> {
         } else {
             ExecutionState::with(|state| {
                 let me = state.current().id();
-                let r = state.get_mut(self.task_id).set_waiter(me);
-                assert!(r, "task shouldn't be finished if no result is present");
+                println!("Setting waiter for {:?} to {:?}", self.task_id, me);
+                if !state.current().woken_by_self() {
+                    let r = state.get_mut(self.task_id).set_waiter(me);
+                    assert!(r, "task shouldn't be finished if no result is present");
+                }
             });
             Poll::Pending
         }
@@ -140,6 +140,7 @@ where
 
                 // Unblock our waiter if we have one
                 ExecutionState::with(|state| {
+                    println!("Taking waiter from {:?}", state.current().id());
                     if let Some(waiter) = state.current_mut().take_waiter() {
                         // NOTE: This could happen if the waiter is dropped first
                         // There should be a better solution to this...

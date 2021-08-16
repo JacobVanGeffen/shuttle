@@ -305,6 +305,7 @@ where
     let scheduler = RandomScheduler::new(iterations);
     let runner = Runner::new(scheduler, Default::default());
     runner.run(f);
+    println!("Made it here too");
 }
 
 /// Run the given function under a PCT concurrency scheduler for some number of iterations at the

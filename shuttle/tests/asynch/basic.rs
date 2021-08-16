@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use test_env_log::test;
 
+// TODO should this test pass? That is, if the task isn't blocked, should shuttle always schedule it?
 #[test]
 fn drop_shuttle_future() {
     let orderings_orig = Arc::new(std::sync::Mutex::new(0usize));

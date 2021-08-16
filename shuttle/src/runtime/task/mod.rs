@@ -42,6 +42,7 @@ pub(crate) const DEFAULT_INLINE_TASKS: usize = 16;
 pub(crate) struct Task {
     pub(super) id: TaskId,
     pub(super) state: TaskState,
+    pub(super) dropped: bool,
     // We use this to check `block_unless_self_woken` is only called from a Future task
     task_type: TaskType,
 
@@ -87,6 +88,7 @@ impl Task {
             waiter: None,
             waker,
             woken_by_self: false,
+            dropped: false,
             name,
             local_storage: LocalMap::new(),
         }
@@ -146,6 +148,11 @@ impl Task {
         self.state == TaskState::Finished
     }
 
+    #[allow(unused)]
+    pub(crate) fn mark_drop(&mut self) {
+        self.dropped = true;
+    }
+
     pub(crate) fn waker(&self) -> Waker {
         self.waker.clone()
     }
@@ -176,6 +183,7 @@ impl Task {
     pub(crate) fn block_unless_self_woken(&mut self) {
         assert!(self.task_type == TaskType::Future);
         let was_woken_by_self = std::mem::replace(&mut self.woken_by_self, false);
+        println!("block_unless_self_woken: {:?} was woken by self?: {:?}", self.id(), was_woken_by_self);
         if !was_woken_by_self {
             self.block();
         }
@@ -184,7 +192,17 @@ impl Task {
     /// Remember that we have been unblocked while we were currently running, and therefore should
     /// not be blocked again by `block_unless_self_woken`.
     pub(super) fn set_woken_by_self(&mut self) {
+        /*
+        if usize::from(self.id).eq(&1) {
+            panic!("Getting stack trace");
+        }
+        */
         self.woken_by_self = true;
+    }
+
+    /// TODO
+    pub(crate) fn woken_by_self(&self) -> bool {
+        self.woken_by_self
     }
 
     /// Register a waiter for this thread to terminate. Returns a boolean indicating whether the

@@ -1,4 +1,4 @@
-use super::{SocketAddr, CONNECT_TABLE, PORT_COUNTER};
+use super::{SocketAddr, new_socket_addr, CONNECT_TABLE};
 use shuttle::{asynch, thread};
 use shuttle::sync::{Arc, Mutex};
 use futures::channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
@@ -7,7 +7,7 @@ use futures::SinkExt;
 use futures::StreamExt;
 use std::fmt;
 use std::io::{self, IoSlice, IoSliceMut};
-use std::net::{IpAddr, ToSocketAddrs};
+use std::net::ToSocketAddrs;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
@@ -45,6 +45,8 @@ struct Inner {
 impl TcpStream {
     /// TODO Document
     pub async fn connect<A: ToSocketAddrs>(addrs: A) -> io::Result<TcpStream> {
+        // TODO is this the correct place to yield?
+        asynch::yield_now();
         // NOTE: The first address should be successful
         // TODO could loop over the addrs
         poll_fn(|cx| TcpStream::poll_connect(addrs.to_socket_addrs().unwrap().next().unwrap(), cx)).await
@@ -84,13 +86,13 @@ impl TcpStream {
         Ok(total)
     }
 
-    fn poll_connect(addr: SocketAddr, cx: &mut Context<'_>) -> Poll<io::Result<TcpStream>> {
+    fn poll_connect(peer: SocketAddr, cx: &mut Context<'_>) -> Poll<io::Result<TcpStream>> {
         CONNECT_TABLE.with(|state| {
             let mut state = state.lock().unwrap();
             // NOTE: This might not be used if sender is none, but we need to keep the mutable sender reference.
             // NOTE: Since we need an immutable reference to state to get peer, make the peer first
-            let peer = TcpStream::new_socket_addr(|s| state.contains_key(s), addr.ip());
-            let sender = state.get_mut(&addr);
+            let addr = new_socket_addr(|s| state.contains_key(s), peer.ip());
+            let sender = state.get_mut(&peer);
             match sender {
                 None => Poll::Pending,
                 Some(sender) => {
@@ -132,24 +134,6 @@ impl TcpStream {
         }
     }
 
-    fn new_socket_addr<F>(used: F, ip: IpAddr) -> SocketAddr
-    where
-        F: Fn(&SocketAddr) -> bool,
-    {
-        PORT_COUNTER.with(|state| {
-            let mut state = state.lock().unwrap();
-            let mut port = match state.get(&ip) {
-                Some(p) => *p,
-                None => 1u16,
-            };
-            while used(&SocketAddr::new(ip, port)) {
-                port = port + 1;
-            }
-            state.insert(ip, port + 1);
-            SocketAddr::new(ip, port)
-        })
-    }
-
     /// TODO Document
     pub fn into_split(self) -> (OwnedReadHalf, OwnedWriteHalf) {
         (
@@ -172,9 +156,20 @@ impl TcpStream {
         Ok(())
     }
 
+    /// Get own SocketAddr
+    pub fn local_addr(&self) -> SocketAddr {
+        self.addr
+    }
+
     /// Get peer SocketAddr
     pub fn peer_addr(&self) -> SocketAddr {
         self.peer
+    }
+}
+
+impl Drop for TcpStream {
+    fn drop(&mut self) {
+        //println!("Stream at {:?} being dropped", self.local_addr());
     }
 }
 
@@ -233,7 +228,8 @@ impl Inner {
         let receiver = &mut self.receiver;
         let mut written = false;
         loop {
-            match receiver.poll_next_unpin(cx) {
+            let res = receiver.poll_next_unpin(cx);
+            match res {
                 // TODO might want to assert that the buffer is not full on the first two branches
                 Poll::Pending => {
                     if !written {
@@ -266,6 +262,7 @@ impl Inner {
         let sender = &mut self.sender;
         // TODO don't make this a loop b/c it only ever does one or zero iterations
         for i in buf {
+            let written = self.written_before_yield;
             let res = sender.poll_ready_unpin(cx);
             match res {
                 Poll::Pending => {
@@ -285,11 +282,13 @@ impl Inner {
                         Some(x) => Some(x + 1),
                     };
                     // Perform a yield
-                    cx.waker().wake_by_ref();
-                    thread::request_yield();
-                    return Poll::Pending;
+                    // TODO uncomment
+                    // TODO why is the receiver disconnecting?
+                    //cx.waker().wake_by_ref();
+                    //thread::request_yield();
+                    //return Poll::Pending;
                 }
-                Poll::Ready(Err(_e)) => {
+                Poll::Ready(Err(e)) => {
                     return Poll::Ready(Err(io::Error::new(
                         io::ErrorKind::Other,
                         "Sending over the data channel failed",
@@ -297,6 +296,7 @@ impl Inner {
                 }
             }
         }
+        let written = self.written_before_yield;
         self.written_before_yield = None;
         Poll::Ready(Ok(written.unwrap()))
     }

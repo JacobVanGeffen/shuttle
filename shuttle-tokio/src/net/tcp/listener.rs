@@ -1,4 +1,4 @@
-use super::CONNECT_TABLE;
+use super::{new_socket_addr, CONNECT_TABLE};
 use futures::channel::mpsc::{unbounded, UnboundedReceiver};
 use futures::StreamExt;
 //use crate::runtime::task::TaskId;
@@ -10,8 +10,7 @@ use std::io;
 use std::net::{self, SocketAddr, ToSocketAddrs};
 use std::sync::Mutex;
 use std::task::{Context, Poll};
-
-// static REGISTRATION: HashMap<SocketAddr, TaskId>;
+use shuttle::asynch;
 
 /// TODO Document
 pub struct TcpListener {
@@ -33,6 +32,13 @@ impl TcpListener {
 
     /// TODO Document
     fn bind_addr(addr: SocketAddr) -> io::Result<TcpListener> {
+        let mut addr = addr.clone();
+        if addr.port() == 0 {
+            CONNECT_TABLE.with(|state| {
+                let mut state = state.lock().unwrap();
+                addr = new_socket_addr(|s| state.contains_key(s), addr.ip());
+            });
+        }
         let (sender, receiver) = unbounded::<(TcpStream, SocketAddr)>();
         CONNECT_TABLE.with(|state| state.lock().unwrap().insert(addr, sender));
         Ok(TcpListener {
@@ -43,6 +49,8 @@ impl TcpListener {
 
     /// TODO Document
     pub async fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
+        // TODO is this the correct place to yield?
+        asynch::yield_now();
         futures::future::poll_fn(|cx| self.poll_accept(cx)).await
     }
 
@@ -54,11 +62,22 @@ impl TcpListener {
             Poll::Pending => Poll::Pending,
             // TODO actually use e
             // Poll::Ready(Err(e)) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "Channel cancelled"))),
-            Poll::Ready(None) => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Channel received unexpected end of file",
-            ))),
-            Poll::Ready(Some(pair)) => Poll::Ready(Ok(pair)),
+            // TODO want to create a new pair in this case?
+            //Poll::Ready(None) => Poll::Ready(Err(io::Error::new(
+            //    io::ErrorKind::Other,
+            //    "Channel received unexpected end of file",
+            //))),
+            // TODO is this what we want?
+            Poll::Ready(None) => {
+                let (sender, new_receiver) = unbounded::<(TcpStream, SocketAddr)>();
+                CONNECT_TABLE.with(|state| state.lock().unwrap().insert(self.local_addr().unwrap(), sender));
+                *receiver = new_receiver;
+                Poll::Pending
+            },
+            Poll::Ready(Some(pair)) => {
+                println!("Got a good pair");
+                Poll::Ready(Ok(pair))
+            },
         }
     }
 
