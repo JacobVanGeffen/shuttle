@@ -14,6 +14,7 @@ pub use tokio::time::{Duration, Instant};
 pub struct Timeout<T> {
     value: Pin<Box<T>>,
     counter: usize,
+    inf: bool,
 }
 
 impl<T> Timeout<T> {
@@ -40,11 +41,17 @@ where
         }
 
         // Now check the countdown timer, with shuttle randomness
-        if self.counter == 0 {
+        if self.inf {
+            // Don't block
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        } else if self.counter == 0 {
             println!("timeout errored");
             Poll::Ready(Err(()))
         } else {
             (*self).counter = self.counter - 1;
+            // Don't block
+            cx.waker().wake_by_ref();
             Poll::Pending
         }
     }
@@ -61,23 +68,41 @@ where
 }
 
 /// Mock of tokio's timeout, which randomly returns Pending or Ready(Err) each time it is polled and the inner future has not completed
-pub fn timeout<T>(_: Duration, future: T) -> Timeout<T>
+pub fn timeout<T>(dur: Duration, future: T) -> Timeout<T>
 where
     T: Future,
 {
     println!("timeout called");
+    if false {// dur.ge(&Duration::from_millis(1000)) {
+        println!("is inf");
+        timeout_inf(future)
+    } else {
+        println!("is not inf");
+        Timeout {
+            value: Box::pin(future),
+            // Randomly define the number of ticks the timeout should take
+            // TODO what should the high be?
+            counter: thread_rng().gen_range(0, 10),
+            inf: false,
+        }
+    }
+}
+
+fn timeout_inf<T>(future: T) -> Timeout<T>
+where
+    T: Future,
+{
     Timeout {
         value: Box::pin(future),
-        // Randomly define the number of ticks the timeout should take
-        // TODO what should the high be?
-        counter: thread_rng().gen_range(0, 10),
+        counter: 1,
+        inf: true,
     }
 }
 
 /// Mock of tokio's Sleep, implemented as a one-time yield
 #[derive(Debug)]
 pub struct Sleep {
-    timeout: Pin<Box<Timeout<AlwaysPending>>>,
+    timeout: Pin<Box<Timeout<SleepInnerFut>>>,
 }
 
 impl Future for Sleep {
@@ -100,16 +125,27 @@ impl Sleep {
 
 /// Mock of tokio's sleep, implemented as a one-time yield
 pub fn sleep(dur: Duration) -> Sleep {
-    Sleep { timeout: Box::pin(timeout(dur, AlwaysPending {})) }
+    println!("Sleep called with dur: {:?}", dur);
+    let fut = SleepInnerFut {
+        pending: !dur.eq(&Duration::from_millis(0)),
+    };
+    Sleep {
+        // NOTE: Will be timeout_inf if dur > 1000ms
+        timeout: Box::pin(timeout(dur, fut))
+    }
 }
 
 #[derive(Debug)]
-struct AlwaysPending {}
+struct SleepInnerFut { pending: bool }
 
-impl Future for AlwaysPending {
+impl Future for SleepInnerFut {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Poll::Pending
+        if self.pending {
+            Poll::Pending
+        } else {
+            Poll::Ready(())
+        }
     }
 }
