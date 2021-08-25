@@ -72,3 +72,5 @@ macro_rules! my_try_join {
         $crate::try_join!(@{ () } $($e,)*)
     };
 }
+
+// TODO normal join

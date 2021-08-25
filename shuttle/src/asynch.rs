@@ -86,7 +86,6 @@ impl<T> Future for JoinHandle<T> {
         } else {
             ExecutionState::with(|state| {
                 let me = state.current().id();
-                println!("Setting waiter for {:?} to {:?}", self.task_id, me);
                 if !state.current().woken_by_self() {
                     let r = state.get_mut(self.task_id).set_waiter(me);
                     assert!(r, "task shouldn't be finished if no result is present");
@@ -140,7 +139,6 @@ where
 
                 // Unblock our waiter if we have one
                 ExecutionState::with(|state| {
-                    println!("Taking waiter from {:?}", state.current().id());
                     if let Some(waiter) = state.current_mut().take_waiter() {
                         // NOTE: This could happen if the waiter is dropped first
                         // There should be a better solution to this...

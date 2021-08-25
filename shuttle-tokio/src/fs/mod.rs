@@ -15,13 +15,11 @@ use shuttle::{asynch, check_dfs};
 
 /// TODO
 pub async fn create_dir_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
-    // println!("Performed create_dir_all");
     std::fs::create_dir_all(path)
 }
 
 /// TODO
 pub async fn read_dir<P: AsRef<Path>>(path: P) -> io::Result<ReadDir> {
-    // println!("Performed read_dir");
     match std::fs::read_dir(path) {
         Ok(inner) => Ok(ReadDir { inner }),
         Err(e) => Err(e),
@@ -30,7 +28,6 @@ pub async fn read_dir<P: AsRef<Path>>(path: P) -> io::Result<ReadDir> {
 
 /// TODO
 pub async fn read_to_string<P: AsRef<Path>>(path: P) -> io::Result<String> {
-    // println!("Performed read_to_string");
     std::fs::read_to_string(path)
 }
 
@@ -60,7 +57,6 @@ pub struct File {
 impl File {
     /// Wrapper around std::fs::File::create
     pub async fn create<P: AsRef<Path>>(path: P) -> io::Result<File> {
-        // println!("Performed create");
         match std::fs::File::create(path) {
             Ok(inner) => Ok(File { inner }),
             Err(e) => Err(e),
@@ -69,14 +65,11 @@ impl File {
 
     /// Wrapper around std::fs::File::open
     pub async fn open<P: AsRef<Path>>(path: P) -> io::Result<File> {
-        // println!("Performed open");
         match std::fs::File::open(path) {
             Ok(inner) => {
-                // println!("Open was ok");
                 Ok(File { inner })
             }
             Err(e) => {
-                // println!("Open was err");
                 Err(e)
             }
         }
@@ -84,36 +77,30 @@ impl File {
 
     /// Creates a shuttle::tokio::fs::File given a std::fs::File
     pub fn from_std(inner: std::fs::File) -> File {
-        // println!("Performed from_std");
         File { inner }
     }
 
     /// Get the inner std::fs::File
     pub fn try_into_std(self) -> Result<std::fs::File, Self> {
-        // println!("Performed try_into_std");
         Ok(self.inner)
     }
 
     /// Wrapper around std:;fs::File::metadata
     pub async fn metadata(&self) -> io::Result<Metadata> {
-        // println!("Performed metadata");
         self.inner.metadata()
     }
 }
 
 impl tokio::io::AsyncWrite for File {
     fn poll_write(mut self: Pin<&mut Self>, _: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize, io::Error>> {
-        // println!("Performed poll_write");
         Poll::Ready(self.inner.write(buf))
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
-        // println!("Performed poll_flush");
         Poll::Ready(self.inner.flush())
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
-        // println!("Performed poll_shutdown");
         // NOTE: Just ignore this for now
         Poll::Ready(Ok(()))
     }
@@ -121,7 +108,6 @@ impl tokio::io::AsyncWrite for File {
 
 impl tokio::io::AsyncRead for File {
     fn poll_read(mut self: Pin<&mut Self>, _: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<Result<(), io::Error>> {
-        // println!("Performed poll_read");
         let read_buf = buf.initialize_unfilled();
         let res = self.inner.read(read_buf);
         if let Ok(n_bytes) = res {
@@ -133,12 +119,10 @@ impl tokio::io::AsyncRead for File {
 
 impl tokio::io::AsyncSeek for File {
     fn start_seek(self: Pin<&mut Self>, mut _pos: SeekFrom) -> Result<(), io::Error> {
-        // println!("Performed start_seek");
         Ok(())
     }
 
     fn poll_complete(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Result<u64, std::io::Error>> {
-        // println!("Performed poll_complete");
         Poll::Ready(Ok(0))
     }
 }

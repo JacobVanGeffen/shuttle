@@ -116,7 +116,6 @@ fn timer_join() {
 }
 
 async fn f(e: bool) -> Result<(), ()> {
-    println!("f({:?})", e);
     if e {
         Err(())
     } else {

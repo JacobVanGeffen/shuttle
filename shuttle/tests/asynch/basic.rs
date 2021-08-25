@@ -56,7 +56,6 @@ fn async_with_join() {
 
                 asynch::spawn(async move {
                     assert_eq!(join.await.unwrap(), 42u32);
-                    println!("Passed the assertion");
                 });
             });
         },

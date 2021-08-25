@@ -7,7 +7,11 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 // NOTE: There doesn't seem to be any async in here, so this is fine
-pub use tokio::time::{Duration, Instant};
+// TODO I will need to implement interval + advance
+pub use tokio::time::{Duration, Instant, interval, Interval, MissedTickBehavior};
+
+// TODO yield?
+pub async fn advance(_d: Duration) {}
 
 /// Mock of tokio's Timeout, which randomly returns Pending or Ready(Err) each time it is polled and the inner future has not completed
 #[derive(Debug)]
@@ -36,7 +40,6 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // First, try polling the future
         if let Poll::Ready(v) = self.value.as_mut().poll(cx) {
-            println!("timeout finished");
             return Poll::Ready(Ok(v));
         }
 
@@ -46,7 +49,6 @@ where
             cx.waker().wake_by_ref();
             Poll::Pending
         } else if self.counter == 0 {
-            println!("timeout errored");
             Poll::Ready(Err(()))
         } else {
             (*self).counter = self.counter - 1;
@@ -72,12 +74,10 @@ pub fn timeout<T>(dur: Duration, future: T) -> Timeout<T>
 where
     T: Future,
 {
-    println!("timeout called");
+    // TODO
     if false {// dur.ge(&Duration::from_millis(1000)) {
-        println!("is inf");
         timeout_inf(future)
     } else {
-        println!("is not inf");
         Timeout {
             value: Box::pin(future),
             // Randomly define the number of ticks the timeout should take
@@ -125,7 +125,6 @@ impl Sleep {
 
 /// Mock of tokio's sleep, implemented as a one-time yield
 pub fn sleep(dur: Duration) -> Sleep {
-    println!("Sleep called with dur: {:?}", dur);
     let fut = SleepInnerFut {
         pending: !dur.eq(&Duration::from_millis(0)),
     };

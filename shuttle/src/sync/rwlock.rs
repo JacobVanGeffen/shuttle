@@ -250,6 +250,14 @@ impl<T> RwLock<T> {
 unsafe impl<T: Send> Send for RwLock<T> {}
 unsafe impl<T: Send> Sync for RwLock<T> {}
 
+// TODO
+unsafe impl Send for RwLockState {}
+unsafe impl Sync for RwLockState {}
+unsafe impl<T: Send> Send for RwLockReadGuard<'_, T> {}
+unsafe impl<T: Send> Sync for RwLockReadGuard<'_, T> {}
+unsafe impl<T: Send> Send for RwLockWriteGuard<'_, T> {}
+unsafe impl<T: Send> Sync for RwLockWriteGuard<'_, T> {}
+
 // TODO this is the RefCell biting us again
 impl<T> UnwindSafe for RwLock<T> {}
 impl<T> RefUnwindSafe for RwLock<T> {}

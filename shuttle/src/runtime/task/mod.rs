@@ -183,7 +183,6 @@ impl Task {
     pub(crate) fn block_unless_self_woken(&mut self) {
         assert!(self.task_type == TaskType::Future);
         let was_woken_by_self = std::mem::replace(&mut self.woken_by_self, false);
-        println!("block_unless_self_woken: {:?} was woken by self?: {:?}", self.id(), was_woken_by_self);
         if !was_woken_by_self {
             self.block();
         }
@@ -209,7 +208,8 @@ impl Task {
     /// waiter should block or not. If false, this task has already finished, and so the waiter need
     /// not block.
     pub(crate) fn set_waiter(&mut self, waiter: TaskId) -> bool {
-        assert!(self.waiter.is_none());
+        // TODO should remove this due to join!
+        // assert!(self.waiter.is_none());
         if self.finished() {
             false
         } else {

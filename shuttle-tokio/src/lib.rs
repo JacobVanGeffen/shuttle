@@ -1,5 +1,6 @@
 //! Shuttle's implementation of [`tokio`].
 
+mod util;
 pub mod fs;
 pub mod io;
 pub mod net;
@@ -69,3 +70,5 @@ pub use shuttle::asynch::spawn;
 pub use shuttle::task_local;
 pub use crate::my_pin as pin;
 pub use crate::my_try_join as try_join;
+// TODO
+pub use tokio::join;

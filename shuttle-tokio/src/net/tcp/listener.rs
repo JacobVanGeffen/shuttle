@@ -75,7 +75,6 @@ impl TcpListener {
                 Poll::Pending
             },
             Poll::Ready(Some(pair)) => {
-                println!("Got a good pair");
                 Poll::Ready(Ok(pair))
             },
         }

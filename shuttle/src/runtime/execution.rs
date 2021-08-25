@@ -222,7 +222,6 @@ impl ExecutionState {
             current_schedule: initial_schedule,
             _current_span_entered: None,
             _current_span: Span::none(),
-            #[cfg(debug_assertions)]
             has_cleaned_up: false,
         }
     }

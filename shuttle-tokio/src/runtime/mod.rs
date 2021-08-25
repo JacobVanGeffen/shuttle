@@ -34,6 +34,11 @@ impl Builder {
     pub fn build(&mut self) -> io::Result<Runtime> {
         Ok(Runtime {})
     }
+
+    /// Mock implementation of tokio's Builder function that does nothing
+    pub fn start_paused(&mut self, _start_paused: bool) -> &mut Self {
+        self
+    }
 }
 
 /// Mock implementation of tokio's Runtime that spawns shuttle tasks
@@ -53,5 +58,9 @@ impl Runtime {
     /// Returns self
     pub fn handle(&self) -> &Self {
         self
+    }
+
+    pub fn new() -> Self {
+        Runtime {}
     }
 }

@@ -167,12 +167,6 @@ impl TcpStream {
     }
 }
 
-impl Drop for TcpStream {
-    fn drop(&mut self) {
-        //println!("Stream at {:?} being dropped", self.local_addr());
-    }
-}
-
 impl AsyncRead for TcpStream {
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
         let mut inner = self.inner.lock().unwrap();

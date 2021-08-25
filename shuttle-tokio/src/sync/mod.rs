@@ -1,46 +1,38 @@
 //! Shuttle's implementation of [`tokio::sync`].
 
 // pub use tokio::sync::*;
+// TODO
+pub use tokio::sync::Notify;
 
-use shuttle::sync::MutexGuard;
-use std::sync::LockResult;
+mod batch_semaphore;
+mod semaphore;
+mod mutex;
+ 
+mod rwlock;
+pub use rwlock::RwLock;
+pub use rwlock::owned_read_guard::OwnedRwLockReadGuard;
+pub use rwlock::owned_write_guard::OwnedRwLockWriteGuard;
+pub use rwlock::owned_write_guard_mapped::OwnedRwLockMappedWriteGuard;
+pub use rwlock::read_guard::RwLockReadGuard;
+pub use rwlock::write_guard::RwLockWriteGuard;
+pub use rwlock::write_guard_mapped::RwLockMappedWriteGuard;
+   
+pub use batch_semaphore::{AcquireError, TryAcquireError};
+pub use semaphore::*;
+pub use mutex::*;
 
-/// A mutex, the same as [`std::sync::Mutex`].
-#[derive(Debug)]
-pub struct Mutex<T> {
-    inner: shuttle::sync::Mutex<T>,
-    //_p: PhantomData<T>,
-}
+// TODO
+pub mod watch {
+    use std::marker::PhantomData;
 
-// TODO tests (see tokio's tests)
-impl<T> Mutex<T> {
-    /// Creates a new mutex in an unlocked state ready for use.
-    pub fn new(value: T) -> Self {
-        Self {
-            inner: shuttle::sync::Mutex::new(value),
+    pub struct Receiver<T> {
+        _p: PhantomData<T>,
+    }
+
+    impl<T> Receiver<T> {
+        pub fn new() -> Receiver<T> {
+            Receiver { _p: PhantomData }
         }
-    }
-
-    /// Acquires a mutex, blocking the current thread until it is able to do so.
-    pub async fn lock(&self) -> MutexGuard<'_, T> {
-        match self.inner.lock() {
-            Ok(ret) => ret,
-            Err(_e) => panic!("Lock future failed"),
-        }
-    }
-
-    /// Calls the shuttle::sync::Mutex::lock function
-    pub fn try_lock(&self) -> LockResult<MutexGuard<'_, T>> {
-        self.inner.lock()
-    }
-}
-
-unsafe impl<T: Send> Send for Mutex<T> {}
-unsafe impl<T: Send> Sync for Mutex<T> {}
-
-impl<T: Default> Default for Mutex<T> {
-    fn default() -> Self {
-        Self::new(Default::default())
     }
 }
 
@@ -52,6 +44,7 @@ pub use futures::channel::oneshot;
 /// TODO
 pub mod mpsc {
     pub use futures::channel::mpsc::*;
+    pub use futures::channel::mpsc::unbounded as unbounded_channel;
 
     use futures::future::poll_fn;
     use futures::StreamExt;
